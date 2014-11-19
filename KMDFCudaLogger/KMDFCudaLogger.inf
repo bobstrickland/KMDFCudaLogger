@@ -1,0 +1,91 @@
+;
+; KMDFCudaLogger.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=Keyboard ; TODO: edit Class
+ClassGuid={78A1C341-4539-11d3-B88D-00C04FAD5171} ; TODO: edit ClassGuid
+Provider=%ManufacturerName%
+CatalogFile=KMDFCudaLogger.cat
+DriverVer= ; TODO: set DriverVer in stampinf property pages
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+; ================= Class section =====================
+
+[ClassInstall32]
+Addreg=SampleClassReg
+
+[SampleClassReg]
+HKR,,,0,%ClassName%
+HKR,,Icon,,-5
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+KMDFCudaLogger.sys  = 1,,
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName%=Standard,NT$ARCH$
+
+[Standard.NT$ARCH$]
+%KMDFCudaLogger.DeviceDesc%=KMDFCudaLogger_Device, Root\KMDFCudaLogger ;  HID\VID_17EF&PID_6009&REV_0127&MI_00; HID_DEVICE_SYSTEM_KEYBOARD; TODO: edit hw-id Root\KMDFCudaLogger
+
+[KMDFCudaLogger_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+KMDFCudaLogger.sys
+
+;-------------- Service installation
+[KMDFCudaLogger_Device.NT.Services]
+AddService = KMDFCudaLogger,%SPSVCINST_ASSOCSERVICE%, KMDFCudaLogger_Service_Inst
+
+; -------------- KMDFCudaLogger driver install sections
+[KMDFCudaLogger_Service_Inst]
+DisplayName    = %KMDFCudaLogger.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\KMDFCudaLogger.sys
+LoadOrderGroup = Extended Base
+
+;
+;--- KMDFCudaLogger_Device Coinstaller installation ------
+;
+
+[DestinationDirs]
+KMDFCudaLogger_Device_CoInstaller_CopyFiles = 11
+
+[KMDFCudaLogger_Device.NT.CoInstallers]
+AddReg=KMDFCudaLogger_Device_CoInstaller_AddReg
+CopyFiles=KMDFCudaLogger_Device_CoInstaller_CopyFiles
+
+[KMDFCudaLogger_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[KMDFCudaLogger_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[SourceDisksFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+[KMDFCudaLogger_Device.NT.Wdf]
+KmdfService =  KMDFCudaLogger, KMDFCudaLogger_wdfsect
+[KMDFCudaLogger_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+ManufacturerName="Bob" ; TODO: add ManufacturerName
+ClassName="Keyboards" ; TODO: edit ClassName
+DiskName = "KMDFCudaLogger Installation Disk"
+KMDFCudaLogger.DeviceDesc = "KMDFCudaLogger Device"
+KMDFCudaLogger.SVCDESC = "KMDFCudaLogger Service"
