@@ -9,8 +9,8 @@
 
 int main(int argc, _TCHAR* argv[]) {
 
-#define IOCTL_CUSTOM_CODE CTL_CODE(FILE_DEVICE_UNKNOWN, 0, METHOD_BUFFERED, FILE_READ_DATA)
-//#define IOCTL_CUSTOM_CODE CTL_CODE(FILE_DEVICE_UNKNOWN, 0, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
+//#define IOCTL_CUSTOM_CODE CTL_CODE(FILE_DEVICE_UNKNOWN, 0, METHOD_BUFFERED, FILE_READ_DATA)
+#define IOCTL_CUSTOM_CODE CTL_CODE(FILE_DEVICE_UNKNOWN, 0, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
 	HANDLE hControlDevice;
 	ULONG  bytes;
 
@@ -26,11 +26,11 @@ int main(int argc, _TCHAR* argv[]) {
 	// open the device with GENERIC_WRITE and call DeviceIoControl.
 	//
 	hControlDevice = CreateFile(TEXT("\\\\.\\EvilFilter"),
-		GENERIC_READ, // Only read access
-		FILE_SHARE_READ, //0, // FILE_SHARE_READ | FILE_SHARE_WRITE
+		GENERIC_READ | GENERIC_WRITE, // Only read access
+		FILE_SHARE_READ | FILE_SHARE_WRITE, //0, // FILE_SHARE_READ | FILE_SHARE_WRITE
 		NULL, // no SECURITY_ATTRIBUTES structure
 		OPEN_EXISTING, // No special create flags
-		0, // No special attributes
+		FILE_FLAG_OVERLAPPED, // 0 //  No special attributes
 		NULL); // No template file
 
 	if (INVALID_HANDLE_VALUE == hControlDevice) {
@@ -39,18 +39,23 @@ int main(int argc, _TCHAR* argv[]) {
 	else {
 
 		PKEYBOARD_INPUT_DATA keyboardData = NULL;
+		OVERLAPPED      DeviceIoOverlapped;
 
 		ULONG length = sizeof(PKEYBOARD_INPUT_DATA);
 
 		keyboardData = (PKEYBOARD_INPUT_DATA)malloc(length);
+		DeviceIoOverlapped.Offset = 0;
+		DeviceIoOverlapped.OffsetHigh = 0;
+		DeviceIoOverlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
 
 		printf("keyboardData  size is now [%lu]\n", length);
+		keyboardData->MakeCode = 'Z';
 		if (!DeviceIoControl(hControlDevice,
 			IOCTL_CUSTOM_CODE,
 			NULL, 0,
 			keyboardData, length,
-			&bytes, NULL)) {
+			&bytes, &DeviceIoOverlapped)) {
 			printf("Ioctl to EvilFilter device failed\n");
 		}
 		else {
@@ -58,29 +63,30 @@ int main(int argc, _TCHAR* argv[]) {
 			printf("keyboardData is [0x%lx]\n", keyboardData);
 
 
-			printf("begin loop\n");
-
-			SYSTEMTIME systemTime;
-
-			GetSystemTime(&systemTime);
-			WORD CurrentMinute = systemTime.wMinute;
-			WORD ExitMinute = systemTime.wMinute + 3;
-			while (TRUE) {
-				if (keyboardData->Flags == 1) {
-					printf("keyboardData->Make Code is [%x]\n", keyboardData->MakeCode);
-				}
-				GetSystemTime(&systemTime);
-				CurrentMinute = systemTime.wMinute;
-			}
-
-
-			printf("end loop\n");
-
 		}
 		CloseHandle(hControlDevice);
 	}
 
 
+	/**/
+	printf("begin loop\n");
+
+	SYSTEMTIME systemTime;
+
+	GetSystemTime(&systemTime);
+	WORD CurrentMinute = systemTime.wMinute;
+	WORD ExitMinute = systemTime.wMinute + 7;
+	while (TRUE) {
+//		if (keyboardData->Flags == 1) {
+//			printf("keyboardData->Make Code is [%x]\n", keyboardData->MakeCode);
+//		}
+		GetSystemTime(&systemTime);
+		CurrentMinute = systemTime.wMinute;
+	}
+
+
+	printf("end loop\n");
+	/**/
 	return 0;
 }
 

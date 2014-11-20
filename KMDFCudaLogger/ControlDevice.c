@@ -7,6 +7,22 @@
 WDFDEVICE ControlDevice;
 extern PKEYBOARD_INPUT_DATA keyboardBuffer;
 
+
+
+
+
+
+VOID PrintPteData(PVOID VirtualAddress) {
+
+	PVOID PDEaddress = (((ULONG)VirtualAddress >> 20) & (~0x3)) + 0xC0300000;
+	PVOID PTEaddress = (((ULONG)VirtualAddress >> 10) & (~0x3)) + 0xC0000000;
+	KdPrint((" PDE/PTE are [0x%lx] [0x%lx]\n", PDEaddress, PTEaddress));
+
+
+//	PPTE ptr;
+//	ptr = PDEaddr(VirtualAddress);
+}
+
 NTSTATUS CreateControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath) {
 	KdPrint(("CreateControlDevice IRQ Level [%u]", KeGetCurrentIrql()));
 
@@ -146,28 +162,24 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 			KdPrint(("ReadKeyboardBuffer memory buffer created.\n"));
 		}
 
-
-		// Copy the memory out
-		//status = WdfMemoryCopyFromBuffer(memoryHandle, 0, &keyboardBuffer, Length);
-		status = WdfMemoryAssignBuffer(memoryHandle, keyboardBuffer, sizeof(keyboardBuffer));
-
-		if (!NT_SUCCESS(status)) {
-			KdPrint(("ReadKeyboardBuffer: WdfMemoryCopyFromBuffer failed 0x%x\n", status));
-			WdfRequestComplete(Request, status);
-			return;
-		}
-
-		/** /
-		status = WdfMemoryGetBuffer(memoryHandle, NULL);
-		if (!NT_SUCCESS(status)) {
-			KdPrint(("ReadKeyboardBuffer WdfMemoryGetBuffer failed: 0x%x\n", status));
+		PKEYBOARD_INPUT_DATA userKeyboardBuffer = (PKEYBOARD_INPUT_DATA)WdfMemoryGetBuffer(memoryHandle, NULL);
+		if (!(userKeyboardBuffer)) {
+			KdPrint(("ReadKeyboardBuffer WdfMemoryGetBuffer failed:\n"));
 			WdfVerifierDbgBreakPoint();
 			WdfRequestCompleteWithInformation(Request, status, 0L);
 			return;
 		}
 		else {
-			KdPrint(("ReadKeyboardBuffer WdfMemoryGetBuffer success.\n"));
+			KdPrint(("ReadKeyboardBuffer WdfMemoryGetBuffer success. [0x%lx] [0x%lx]\n", userKeyboardBuffer, MmGetPhysicalAddress(userKeyboardBuffer)));
+			KdPrint(("ReadKeyboardBuffer Make Code is [%c]:\n", userKeyboardBuffer->MakeCode));
+
+			KdPrint(("ReadKeyboardBuffer KMDF keyboardBuffer "));
+			PrintPteData(keyboardBuffer);
+			KdPrint(("ReadKeyboardBuffer user keyboardBuffer "));
+			PrintPteData(userKeyboardBuffer);
 		}
+
+		/** /
 
 
 		status = WdfMemoryCopyFromBuffer(memoryHandle, 0, keyboardBuffer, Length);
