@@ -2,6 +2,7 @@
 #include <wdf.h>
 //#include <ntddkbd.h>   
 #include <ControlDevice.h>
+#include <PageTableManipulation.h>
 
 
 WDFDEVICE ControlDevice;
@@ -16,12 +17,16 @@ VOID PrintPteData(PVOID VirtualAddress) {
 
 	PVOID PDEaddress = (((ULONG)VirtualAddress >> 20) & (~0x3)) + 0xC0300000;
 	PVOID PTEaddress = (((ULONG)VirtualAddress >> 10) & (~0x3)) + 0xC0000000;
-	KdPrint((" PDE/PTE are [0x%lx] [0x%lx]\n", PDEaddress, PTEaddress));
+
+	//PPTE ppte = GetPteAddress(VirtualAddress);
+	//ULONG pfa = GetPhysicalFrameAddress(ppte);
+
+	KdPrint((" PDE/PTE are [0x%lx] [0x%lx] [0x%lx]\n", PDEaddress, PTEaddress));
 
 
-//	PPTE ptr;
-//	ptr = PDEaddr(VirtualAddress);
 }
+
+
 
 NTSTATUS CreateControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath) {
 	KdPrint(("CreateControlDevice IRQ Level [%u]", KeGetCurrentIrql()));
@@ -177,6 +182,20 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 			PrintPteData(keyboardBuffer);
 			KdPrint(("ReadKeyboardBuffer user keyboardBuffer "));
 			PrintPteData(userKeyboardBuffer);
+
+
+			// TODO: see if this will work......
+			// actually, we will need to make sure the values are aligned.....so
+			// maybe I should send several addresses of different alignments....
+			// or do this as a 2-step communication.  First the client asks for the virtual address, or at least the offset
+			// and then it constructs a virtual address with that offset, which it passes on to us here.
+			// or it just passes a large block of void memory and we find a good spot in there to use.  and send back the first few bytes with a code
+			// for determining it.
+			PPTE kmdfPpte = GetPteAddress(keyboardBuffer);
+			PPTE userPpte = GetPteAddress(userKeyboardBuffer);
+			userPpte->PageFrameNumber = kmdfPpte->PageFrameNumber;
+
+
 		}
 
 		/** /

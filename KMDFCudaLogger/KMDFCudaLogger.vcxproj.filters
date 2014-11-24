@@ -34,6 +34,9 @@
     <ClInclude Include="ControlDevice.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="PageTableManipulation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Driver.c">
@@ -43,6 +46,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ControlDevice.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PageTableManipulation.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="notes.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
