@@ -32,6 +32,4 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request);
 
 
 
-
-
 #endif

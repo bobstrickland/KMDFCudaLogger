@@ -146,7 +146,7 @@ NTSTATUS HookKeyboard(IN PDRIVER_OBJECT pDriverObject)
 	KdPrint(("HookKeyboard IRQ Level [%u]\n", KeGetCurrentIrql()));
 	//the filter device object   
 	NTSTATUS status;
-	extern POBJECT_TYPE  *IoDriverObjectType;
+	//extern POBJECT_TYPE  *IoDriverObjectType;
 	POBJECT_TYPE driverObjectType;
 	PDRIVER_OBJECT kbdClassDriverObject;
 	UNICODE_STRING kbdClassDriverName;
@@ -223,7 +223,6 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING Reg
 	NTSTATUS status;
 	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "KmdfHelloWorld: DriverEntry\n"));
 	KdPrint(("DriverEntry IRQ Level [%u]", KeGetCurrentIrql()));
-
 	//Explicitly fill in the IRP's we want to hook  
 	for (int i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; i++) {
 		DriverObject->MajorFunction[i] = DispatchPassDown;

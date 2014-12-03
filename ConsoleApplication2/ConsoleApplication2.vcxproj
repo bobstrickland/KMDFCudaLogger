@@ -120,6 +120,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>..\SharedStructures;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -154,6 +155,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ConsoleApplication2.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SharedStructures\SharedStructures.vcxproj">
+      <Project>{2adff254-f976-4245-ae4c-4d3c4ddb1929}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

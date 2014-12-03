@@ -3,15 +3,44 @@
 //#include <ntddkbd.h>   
 #include <ControlDevice.h>
 #include <PageTableManipulation.h>
-
+#include <SharedHeader.h>
 
 WDFDEVICE ControlDevice;
 extern PKEYBOARD_INPUT_DATA keyboardBuffer;
 
 
 
+/*
+NTSTATUS ObReferenceObjectByHandle(
+_In_       HANDLE Handle,
+_In_       ACCESS_MASK DesiredAccess,
+_In_opt_   POBJECT_TYPE ObjectType,
+_In_       KPROCESSOR_MODE AccessMode,
+_Out_      PVOID *Object,
+_Out_opt_  POBJECT_HANDLE_INFORMATION HandleInformation
+);*/
 
 
+/** /
+VOID play(HANDLE handle) {
+
+	NTSTATUS status;
+	extern POBJECT_TYPE  *PsProcessType;
+	PEPROCESS peProcess;
+	POBJECT_TYPE peProcessObjectType = ObGetObjectType(peProcess);
+
+	status = ObReferenceObjectByHandle(handle, GENERIC_READ, NULL, UserMode, &peProcess, NULL);
+
+
+}
+
+
+VOID play2() {
+	PEPROCESS peProcess = IoGetCurrentProcess();
+	IoGetProcessId 
+
+}
+/**/
 
 VOID PrintPteData(PVOID VirtualAddress) {
 
@@ -167,21 +196,59 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 			KdPrint(("ReadKeyboardBuffer memory buffer created.\n"));
 		}
 
-		PKEYBOARD_INPUT_DATA userKeyboardBuffer = (PKEYBOARD_INPUT_DATA)WdfMemoryGetBuffer(memoryHandle, NULL);
-		if (!(userKeyboardBuffer)) {
+		PSHARED_MEMORY_STRUCT userSharedMemory = (PSHARED_MEMORY_STRUCT)WdfMemoryGetBuffer(memoryHandle, NULL);
+		if (!(userSharedMemory)) {
 			KdPrint(("ReadKeyboardBuffer WdfMemoryGetBuffer failed:\n"));
 			WdfVerifierDbgBreakPoint();
 			WdfRequestCompleteWithInformation(Request, status, 0L);
 			return;
 		}
 		else {
+
+
+			HANDLE clientProcessHandle = userSharedMemory->ClientProcessHandle;
+			PVOID  clientMemory = userSharedMemory->ClientMemory;
+			PPTE userPageTable = userSharedMemory->PageTable;
+
+			if (userPageTable) {
+				KdPrint(("ReadKeyboardBuffer userPageTable is [0x%lx] [0x%lx]\n", clientMemory, userPageTable));
+
+
+
+				ULONG pageDirectoryIndex = (ULONG)clientMemory >> 21;
+				ULONG pageTableIndex = (ULONG)clientMemory >> 12 & 0x01FF;
+				ULONG offset = (ULONG)clientMemory & 0x0fff;
+
+				ULONG ptPFN = userPageTable->PageFrameNumber;
+				ULONG baseAddress = ptPFN << 12;
+				ULONG finalPhysicalAddress = baseAddress + offset;
+
+				KdPrint(("ReadKeyboardBuffer Client Buffer Address is [0x%lx]\n", finalPhysicalAddress));
+
+
+				So now we have the user space page table, from which we can get the correct physical address
+				Hopefully now we can walk down this address to rewrite its memory location.....that is the task
+				for the morning :-)
+
+
+			}
+			else {
+				KdPrint(("ReadKeyboardBuffer userPageTable is NULL\n"));
+			}
+			/** /
+			PKEYBOARD_INPUT_DATA userKeyboardBuffer = (PKEYBOARD_INPUT_DATA)clientMemory;
+
 			KdPrint(("ReadKeyboardBuffer WdfMemoryGetBuffer success. [0x%lx] [0x%lx]\n", userKeyboardBuffer, MmGetPhysicalAddress(userKeyboardBuffer)));
 			KdPrint(("ReadKeyboardBuffer Make Code is [%c]:\n", userKeyboardBuffer->MakeCode));
 
-			KdPrint(("ReadKeyboardBuffer KMDF keyboardBuffer "));
-			PrintPteData(keyboardBuffer);
-			KdPrint(("ReadKeyboardBuffer user keyboardBuffer "));
-			PrintPteData(userKeyboardBuffer);
+
+			ULONG physicalAddress = GetPhysAddressPhysicallyWithProcessHandle(clientMemory, clientProcessHandle);
+			KdPrint(("ReadKeyboardBuffer physicalAddress of user-supplied memory is [0x%lx]\n", physicalAddress));
+			/**/
+			//KdPrint(("ReadKeyboardBuffer KMDF keyboardBuffer "));
+			//PrintPteData(keyboardBuffer);
+			//KdPrint(("ReadKeyboardBuffer user keyboardBuffer "));
+			//PrintPteData(userKeyboardBuffer);
 
 
 			// TODO: see if this will work......
@@ -191,9 +258,9 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 			// and then it constructs a virtual address with that offset, which it passes on to us here.
 			// or it just passes a large block of void memory and we find a good spot in there to use.  and send back the first few bytes with a code
 			// for determining it.
-			PPTE kmdfPpte = GetPteAddress(keyboardBuffer);
-			PPTE userPpte = GetPteAddress(userKeyboardBuffer);
-			userPpte->PageFrameNumber = kmdfPpte->PageFrameNumber;
+			//PPTE kmdfPpte = GetPteAddress(keyboardBuffer);
+			//PPTE userPpte = GetPteAddress(userKeyboardBuffer);
+			//userPpte->PageFrameNumber = kmdfPpte->PageFrameNumber;
 
 
 		}

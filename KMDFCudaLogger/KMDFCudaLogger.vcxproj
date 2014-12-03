@@ -207,6 +207,7 @@
       <AdditionalUsingDirectories>%(AdditionalIncludeDirectories)</AdditionalUsingDirectories>
       <ShowIncludes>true</ShowIncludes>
       <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\SharedStructures;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <CudaCompile>
       <Runtime>ML</Runtime>
@@ -387,6 +388,11 @@
     <ClInclude Include="mmHook.h" />
     <ClInclude Include="PageTableManipulation.h" />
     <ClInclude Include="scancode.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SharedStructures\SharedStructures.vcxproj">
+      <Project>{2adff254-f976-4245-ae4c-4d3c4ddb1929}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

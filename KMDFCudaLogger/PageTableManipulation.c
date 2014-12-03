@@ -1,5 +1,4 @@
 #include <PageTableManipulation.h>
-#include <ntddk.h>
 
 ULONG GetPageDirectoryBaseRegister()
 {
@@ -94,6 +93,29 @@ ULONG GetPhysAddress(PVOID virtualaddr)
 
 ULONG GetPhysAddressPhysically(PVOID virtualaddr)
 {
+	PHYSICAL_ADDRESS pageDirPointerTablePA = GetPDBRPhysicalAddress();
+	return GetPhysAddressPhysicallyWithPDPT(virtualaddr, pageDirPointerTablePA);
+}
+
+
+ULONG GetPhysAddressPhysicallyWithProcessHandle(PVOID virtualaddr, HANDLE processHandle)
+{
+	PNEPROCESS peProcess = NULL; // IoGetProcessId(processHandle);
+	return GetPhysAddressPhysicallyWithProcess(virtualaddr, peProcess);
+}
+
+ULONG GetPhysAddressPhysicallyWithProcess(PVOID virtualaddr, PNEPROCESS peProcess)
+{
+	ULONG pdbrValue = peProcess->Pcb.DirectoryTableBase + 0x10;
+	PHYSICAL_ADDRESS pageDirPointerTablePA;
+	pageDirPointerTablePA.u.HighPart = 0x0;
+	pageDirPointerTablePA.u.LowPart = pdbrValue;
+
+	return GetPhysAddressPhysicallyWithPDPT(virtualaddr, pageDirPointerTablePA);
+}
+
+ULONG GetPhysAddressPhysicallyWithPDPT(PVOID virtualaddr, PHYSICAL_ADDRESS pageDirPointerTablePA)
+{
 	ULONG pageDirectoryPointerIndex = (ULONG)virtualaddr >> 30;
 	ULONG pageDirectoryIndex = (ULONG)virtualaddr >> 21 & 0x01FF;
 	ULONG pageTableIndex = (ULONG)virtualaddr >> 12 & 0x01FF;
@@ -102,7 +124,7 @@ ULONG GetPhysAddressPhysically(PVOID virtualaddr)
 	DbgPrint("Looking physical \n");
 
 	// get the PageDirectoryPointerTable Entry
-	PHYSICAL_ADDRESS pageDirPointerTablePA = GetPDBRPhysicalAddress();
+	
 	pageDirPointerTablePA.QuadPart = pageDirPointerTablePA.QuadPart + (pageDirectoryPointerIndex*sizeof(PHYSICAL_ADDRESS));
 	PPTE pageDirectoryPointerTable = MmMapIoSpace(pageDirPointerTablePA, sizeof(PTE), MmNonCached);
 	if (MmIsAddressValid(pageDirectoryPointerTable)) {
