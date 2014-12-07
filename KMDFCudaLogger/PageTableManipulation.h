@@ -7,20 +7,25 @@
 
 typedef struct _PTE
 {
-	ULONG Valid : 1;
-	ULONG Writable : 1;
-	ULONG Owner : 1;
-	ULONG WriteThrough : 1;
-	ULONG CacheDisable : 1;
-	// Protection
-		ULONG Accessed : 1;
-		ULONG Dirty : 1;
-		ULONG LargePage : 1;
-		ULONG Global : 1;
-		ULONG CopyOnWrite : 1;
-	ULONG Prototype : 1;
-	ULONG Transition : 1;
-	ULONG PageFrameNumber : 20;
+	union {
+		ULONG rawValue;
+		struct {
+			ULONG Valid : 1;
+			ULONG Writable : 1;
+			ULONG Owner : 1;
+			ULONG WriteThrough : 1;
+			ULONG CacheDisable : 1;
+			// Protection
+			ULONG Accessed : 1;
+			ULONG Dirty : 1;
+			ULONG LargePage : 1;
+			ULONG Global : 1;
+			ULONG CopyOnWrite : 1;
+			ULONG Prototype : 1;
+			ULONG Transition : 1;
+			ULONG PageFrameNumber : 20;
+		} DUMMYSTRUCTNAME;
+	};
 } PTE, *PPTE;
 
 

@@ -176,7 +176,7 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 
 
 
-		Length = sizeof(PKEYBOARD_INPUT_DATA); 
+		Length = sizeof(SHARED_MEMORY_STRUCT);
 
 		WDF_OBJECT_ATTRIBUTES  attributes;
 		WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
@@ -208,76 +208,71 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 
 			HANDLE clientProcessHandle = userSharedMemory->ClientProcessHandle;
 			PVOID  clientMemory = userSharedMemory->ClientMemory;
-			PPTE userPageTable = userSharedMemory->PageTable;
+			PPTE clientPpte = userSharedMemory->PageTable;
 
-			if (userPageTable) {
-				KdPrint(("ReadKeyboardBuffer userPageTable is [0x%lx] [0x%lx]\n", clientMemory, userPageTable));
+			if (clientPpte) {
+				KdPrint(("ReadKeyboardBuffer userPageTable is [0x%lx] [0x%lx]\n", clientMemory, clientPpte));
 
+				KdPrint(("ReadKeyboardBuffer Client instruction is [%c]\n", userSharedMemory->instruction));
 
 
 				ULONG pageDirectoryIndex = (ULONG)clientMemory >> 21;
 				ULONG pageTableIndex = (ULONG)clientMemory >> 12 & 0x01FF;
-				ULONG offset = (ULONG)clientMemory & 0x0fff;
+				ULONG clientOffset = (ULONG)clientMemory & 0x0fff;
 
-				ULONG ptPFN = userPageTable->PageFrameNumber;
-				ULONG baseAddress = ptPFN << 12;
-				ULONG finalPhysicalAddress = baseAddress + offset;
+				ULONG clientPageFrameNumber = clientPpte->PageFrameNumber;
+				ULONG clientBaseAddress     = clientPageFrameNumber << 12;
+				ULONG finalPhysicalAddress  = clientBaseAddress + clientOffset;
 
 				KdPrint(("ReadKeyboardBuffer Client Buffer Address is [0x%lx]\n", finalPhysicalAddress));
 
+				PPTE  kmdfPpte = GetPteAddress(keyboardBuffer);
+				ULONG kmdfPageFrameNumber = kmdfPpte->PageFrameNumber;
+				ULONG kmdfBaseAddress = kmdfPageFrameNumber << 12;
+				ULONG kmdfOffset = (ULONG)keyboardBuffer & 0x0fff;
 
-				So now we have the user space page table, from which we can get the correct physical address
-				Hopefully now we can walk down this address to rewrite its memory location.....that is the task
-				for the morning :-)
+
+
+				ULONG newClinetBaseAddress = kmdfBaseAddress + kmdfOffset - clientOffset;
+				ULONG newClientPageFrameNumber = newClinetBaseAddress >> 12;
+
+
+				KdPrint(("ReadKeyboardBuffer client is [0x%lx] [0x%lx] [0x%lx]\n", clientBaseAddress, clientPageFrameNumber, clientOffset));
+				KdPrint(("ReadKeyboardBuffer kmdf   is [0x%lx] [0x%lx] [0x%lx]\n", kmdfBaseAddress, kmdfPageFrameNumber, kmdfOffset));
+				KdPrint(("ReadKeyboardBuffer NEW    is [0x%lx] [0x%lx] [0x%lx]\n", newClinetBaseAddress, newClientPageFrameNumber, clientOffset));
+
+				if (userSharedMemory->instruction == 'O') {
+					KdPrint(("Sending offset to user\n"));
+					userSharedMemory->offset = kmdfOffset;
+				}
+				else if (userSharedMemory->instruction == 'E') {
+
+					KdPrint(("KMDF   PTE [0x%lx] [0x%lx]\n", kmdfPpte, *kmdfPpte));
+					KdPrint(("client PTE [0x%lx] [0x%lx]\n", clientPpte, *clientPpte));
+
+
+					ULONG kmdfPfnValue = kmdfPpte->rawValue & ~(0xfff);
+					ULONG clientPfnValue = clientPpte->rawValue & ~(0xfff);
+
+
+					(*((PULONG)clientPpte)) &= ~(1 << 2);  // clear owner
+					(*((PULONG)clientPpte)) |= 0x100; // set global
+					(*((PULONG)clientPpte)) |= 0x200; // set copy on write
+					// This line right here gived a BSOD with the error MEMORY_MANAGEMENT
+					(*((PULONG)clientPpte)) ^= (kmdfPfnValue ^ clientPfnValue);
+					KdPrint(("Replace physical address success\n"));
+					KdPrint(("KMDF   PTE [0x%lx] [0x%lx]\n", kmdfPpte, *kmdfPpte));
+					KdPrint(("client PTE [0x%lx] [0x%lx]\n", clientPpte, *clientPpte));
+
+				}
 
 
 			}
 			else {
 				KdPrint(("ReadKeyboardBuffer userPageTable is NULL\n"));
 			}
-			/** /
-			PKEYBOARD_INPUT_DATA userKeyboardBuffer = (PKEYBOARD_INPUT_DATA)clientMemory;
-
-			KdPrint(("ReadKeyboardBuffer WdfMemoryGetBuffer success. [0x%lx] [0x%lx]\n", userKeyboardBuffer, MmGetPhysicalAddress(userKeyboardBuffer)));
-			KdPrint(("ReadKeyboardBuffer Make Code is [%c]:\n", userKeyboardBuffer->MakeCode));
-
-
-			ULONG physicalAddress = GetPhysAddressPhysicallyWithProcessHandle(clientMemory, clientProcessHandle);
-			KdPrint(("ReadKeyboardBuffer physicalAddress of user-supplied memory is [0x%lx]\n", physicalAddress));
-			/**/
-			//KdPrint(("ReadKeyboardBuffer KMDF keyboardBuffer "));
-			//PrintPteData(keyboardBuffer);
-			//KdPrint(("ReadKeyboardBuffer user keyboardBuffer "));
-			//PrintPteData(userKeyboardBuffer);
-
-
-			// TODO: see if this will work......
-			// actually, we will need to make sure the values are aligned.....so
-			// maybe I should send several addresses of different alignments....
-			// or do this as a 2-step communication.  First the client asks for the virtual address, or at least the offset
-			// and then it constructs a virtual address with that offset, which it passes on to us here.
-			// or it just passes a large block of void memory and we find a good spot in there to use.  and send back the first few bytes with a code
-			// for determining it.
-			//PPTE kmdfPpte = GetPteAddress(keyboardBuffer);
-			//PPTE userPpte = GetPteAddress(userKeyboardBuffer);
-			//userPpte->PageFrameNumber = kmdfPpte->PageFrameNumber;
-
-
 		}
 
-		/** /
-
-
-		status = WdfMemoryCopyFromBuffer(memoryHandle, 0, keyboardBuffer, Length);
-		if (!NT_SUCCESS(status)) {
-			KdPrint(("ReadKeyboardBuffer: WdfMemoryCopyFromBuffer failed 0x%x\n", status));
-			WdfRequestComplete(Request, status);
-			return;
-		}
-		else {
-			KdPrint(("ReadKeyboardBuffer WdfMemoryCopyFromBuffer successful.\n"));
-		}
-		/**/
 	}
 	else {
 		KdPrint(("keyboardBuffer not yet set....plz wait\n"));
@@ -287,6 +282,6 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 	// Set transfer information
 	WdfRequestSetInformation(Request, (ULONG_PTR)Length);
 	WdfRequestComplete(Request, status);
-
+	return;
 
 }

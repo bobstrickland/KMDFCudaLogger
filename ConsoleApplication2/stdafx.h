@@ -41,6 +41,11 @@ typedef struct _KEYBOARD_INPUT_DATA {
 	ULONG ExtraInformation;
 } KEYBOARD_INPUT_DATA, *PKEYBOARD_INPUT_DATA;
 
+typedef struct _LLIST {
+	struct _LLIST *previous;
+	PKEYBOARD_INPUT_DATA keyboardBuffer;
+} LLIST, *PLLIST;
+
 PPTE GetPteAddress(PVOID virtualaddr);
 
 #define PTE_SIZE 8

@@ -42,6 +42,7 @@ PPTE GetPteAddress(PVOID virtualaddr){
 		PPTE pageTable = (PPTE)(PROCESS_PAGE_TABLE_BASE + (pageTableIndex * PTE_SIZE) + (PAGE_SIZE * pageDirectoryIndex));
 		DbgPrint("pageTable   [0x%lx] ", pageTable);
 		if (MmIsAddressValid(pageTable)) {
+			DbgPrint("\n");
 			return pageTable;
 		}
 		else {
