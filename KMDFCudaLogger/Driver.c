@@ -86,13 +86,13 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 //			KdPrint((" cr3 [0x%lx] ", cr3));
 
 
-			ULONG pageDirectoryPointerIndex = (ULONG)keys >> 30;
-			KdPrint((" index is [%lu] ", pageDirectoryPointerIndex));
+//			ULONG pageDirectoryPointerIndex = (ULONG)keys >> 30;
+//			KdPrint((" index is [%lu] ", pageDirectoryPointerIndex));
+//			INDEX gpa = GetPhysAddress(keys);
+//			KdPrint(("\n PTM keys [0x%lx] keys [0x%llx] \n", gpa, keysPA.QuadPart));
 
-			
-
-			GetPhysAddress(keys);
-			GetPhysAddressPhysically(keys);
+//			GetPhysAddress(keys);
+//			GetPhysAddressPhysically(keys);
 			//KdPrint((" keys [0x%lx] [0x%lx] [0x%lx] ", keys, keysPA, keysHpa));
 
 			KdPrint((" keys [0x%lx] [0x%llx]  H[0x%lx] L[0x%lx] ", keys, keysPA.QuadPart, keysPA.u.HighPart, keysPA.u.LowPart));

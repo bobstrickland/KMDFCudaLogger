@@ -30,13 +30,13 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
     <EnableDeployment>True</EnableDeployment>
-    <RemoveDriver>False</RemoveDriver>
+    <RemoveDriver>True</RemoveDriver>
     <InstallMode>DriverTest</InstallMode>
     <HardwareIdString />
     <CommandLine />
     <ScriptPath>C:\Program Files (x86)\Windows Kits\8.1\Testing\Tests\Utilities\DefaultDriverPackageInstallationTask.dll</ScriptPath>
-    <DbgengRemoteMachineName>grumpy</DbgengRemoteMachineName>
-    <DbgengKernelMachineName>grumpy</DbgengKernelMachineName>
+    <DbgengRemoteMachineName>sneezy</DbgengRemoteMachineName>
+    <DbgengKernelMachineName>sneezy</DbgengKernelMachineName>
     <DeployFiles />
     <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
     <ScriptDeviceQuery />

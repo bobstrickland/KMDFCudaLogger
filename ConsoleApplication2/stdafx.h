@@ -10,12 +10,11 @@
 #include <stdio.h>
 #include <tchar.h>
 
-
 typedef unsigned long ULONG;
 typedef unsigned short USHORT;
 typedef void *  PVOID;
-//#define USHORT unsigned short
-/**/
+
+/** /
 typedef struct _PTE
 {
 	ULONG Present : 1;
@@ -46,11 +45,14 @@ typedef struct _LLIST {
 	PKEYBOARD_INPUT_DATA keyboardBuffer;
 } LLIST, *PLLIST;
 
-PPTE GetPteAddress(PVOID virtualaddr);
+PVOID GetPdeAddress(PVOID virtualaddr);
+PVOID GetPteAddress(PVOID virtualaddr);
 
-#define PTE_SIZE 8
+//#define PTE_SIZE 8
+#define PTE_SIZE 4
 #define PAGE_SIZE 0x1000
 
-#define	PROCESS_PAGE_DIRECTORY_BASE		0xC0600000 
+//#define	PROCESS_PAGE_DIRECTORY_BASE		0xC0600000 
+#define	PROCESS_PAGE_DIRECTORY_BASE		0xC0300000 
 #define PROCESS_PAGE_TABLE_BASE			0xC0000000 
 // TODO: reference additional headers your program requires here

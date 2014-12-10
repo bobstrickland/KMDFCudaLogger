@@ -42,20 +42,6 @@ VOID play2() {
 }
 /**/
 
-VOID PrintPteData(PVOID VirtualAddress) {
-
-	PVOID PDEaddress = (((ULONG)VirtualAddress >> 20) & (~0x3)) + 0xC0300000;
-	PVOID PTEaddress = (((ULONG)VirtualAddress >> 10) & (~0x3)) + 0xC0000000;
-
-	//PPTE ppte = GetPteAddress(VirtualAddress);
-	//ULONG pfa = GetPhysicalFrameAddress(ppte);
-
-	KdPrint((" PDE/PTE are [0x%lx] [0x%lx] [0x%lx]\n", PDEaddress, PTEaddress));
-
-
-}
-
-
 
 NTSTATUS CreateControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath) {
 	KdPrint(("CreateControlDevice IRQ Level [%u]", KeGetCurrentIrql()));
@@ -155,36 +141,13 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 	if (keyboardBuffer) {
 
 
-
-		/** /
-		PVOID mappedBuffer = MmGetSystemAddressForMdlSafe(keyboardBuffer, NormalPagePriority);
-		if (mappedBuffer) {
-
-			KdPrint(("MmGetSystemAddressForMdlSafe success :-)))) \n"));
-			PMDL mdl = NULL;
-			WdfRequestRetrieveOutputWdmMdl(Request, &mdl);
-			mdl->
-
-
-
-		}
-		else {
-
-			KdPrint(("MmGetSystemAddressForMdlSafe FAILED :-( \n"));
-		}
-		/**/
-
-
-
 		Length = sizeof(SHARED_MEMORY_STRUCT);
 
 		WDF_OBJECT_ATTRIBUTES  attributes;
 		WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
 
 
-		status = WdfRequestRetrieveOutputMemory(Request, &memoryHandle);
-		//status = WdfMemoryCreate(&attributes, NonPagedPool, 0, Length, &memoryHandle, &memoryPointer);
-		
+		status = WdfRequestRetrieveOutputMemory(Request, &memoryHandle);	
 
 		if (!NT_SUCCESS(status)) {
 			KdPrint(("ReadKeyboardBuffer Could not create memory buffer 0x%x\n", status));
@@ -205,65 +168,22 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 		}
 		else {
 
-
-			HANDLE clientProcessHandle = userSharedMemory->ClientProcessHandle;
-			PVOID  clientMemory = userSharedMemory->ClientMemory;
-			PPTE clientPpte = userSharedMemory->PageTable;
-
-			if (clientPpte) {
-				KdPrint(("ReadKeyboardBuffer userPageTable is [0x%lx] [0x%lx]\n", clientMemory, clientPpte));
-
-				KdPrint(("ReadKeyboardBuffer Client instruction is [%c]\n", userSharedMemory->instruction));
-
-
-				ULONG pageDirectoryIndex = (ULONG)clientMemory >> 21;
-				ULONG pageTableIndex = (ULONG)clientMemory >> 12 & 0x01FF;
-				ULONG clientOffset = (ULONG)clientMemory & 0x0fff;
-
-				ULONG clientPageFrameNumber = clientPpte->PageFrameNumber;
-				ULONG clientBaseAddress     = clientPageFrameNumber << 12;
-				ULONG finalPhysicalAddress  = clientBaseAddress + clientOffset;
-
-				KdPrint(("ReadKeyboardBuffer Client Buffer Address is [0x%lx]\n", finalPhysicalAddress));
-
-				PPTE  kmdfPpte = GetPteAddress(keyboardBuffer);
-				ULONG kmdfPageFrameNumber = kmdfPpte->PageFrameNumber;
-				ULONG kmdfBaseAddress = kmdfPageFrameNumber << 12;
-				ULONG kmdfOffset = (ULONG)keyboardBuffer & 0x0fff;
-
-
-
-				ULONG newClinetBaseAddress = kmdfBaseAddress + kmdfOffset - clientOffset;
-				ULONG newClientPageFrameNumber = newClinetBaseAddress >> 12;
-
-
-				KdPrint(("ReadKeyboardBuffer client is [0x%lx] [0x%lx] [0x%lx]\n", clientBaseAddress, clientPageFrameNumber, clientOffset));
-				KdPrint(("ReadKeyboardBuffer kmdf   is [0x%lx] [0x%lx] [0x%lx]\n", kmdfBaseAddress, kmdfPageFrameNumber, kmdfOffset));
-				KdPrint(("ReadKeyboardBuffer NEW    is [0x%lx] [0x%lx] [0x%lx]\n", newClinetBaseAddress, newClientPageFrameNumber, clientOffset));
-
-				if (userSharedMemory->instruction == 'O') {
-					KdPrint(("Sending offset to user\n"));
+			CHAR instruction = userSharedMemory->instruction;
+			if (instruction) {
+				KdPrint(("ReadKeyboardBuffer Client instruction is [%c]\n", instruction));
+				if (instruction == 'O') {
+					INDEX kmdfOffset = (INDEX)keyboardBuffer & 0x0fff;
+					KdPrint(("Sending address [0x%lx] offset [0x%lx] to user\n", (ULONG)keyboardBuffer, kmdfOffset));
 					userSharedMemory->offset = kmdfOffset;
+					status = STATUS_SUCCESS;
 				}
-				else if (userSharedMemory->instruction == 'E') {
+				else if (instruction == 'E') {
+					GENERIC_POINTER  clientMemory = userSharedMemory->ClientMemory;
+					PPDE clientPpde = (PPDE)userSharedMemory->PageDirectory;
+					PPTE clientPpte = (PPTE)userSharedMemory->PageTable;
+					KdPrint(("ReadKeyboardBuffer usermem is  [0x%lx] Page Directory is [0x%lx] Page Table is [0x%lx]\n", clientMemory, clientPpde, clientPpte));
 
-					KdPrint(("KMDF   PTE [0x%lx] [0x%lx]\n", kmdfPpte, *kmdfPpte));
-					KdPrint(("client PTE [0x%lx] [0x%lx]\n", clientPpte, *clientPpte));
-
-
-					ULONG kmdfPfnValue = kmdfPpte->rawValue & ~(0xfff);
-					ULONG clientPfnValue = clientPpte->rawValue & ~(0xfff);
-
-
-					(*((PULONG)clientPpte)) &= ~(1 << 2);  // clear owner
-					(*((PULONG)clientPpte)) |= 0x100; // set global
-					(*((PULONG)clientPpte)) |= 0x200; // set copy on write
-					// This line right here gived a BSOD with the error MEMORY_MANAGEMENT
-					(*((PULONG)clientPpte)) ^= (kmdfPfnValue ^ clientPfnValue);
-					KdPrint(("Replace physical address success\n"));
-					KdPrint(("KMDF   PTE [0x%lx] [0x%lx]\n", kmdfPpte, *kmdfPpte));
-					KdPrint(("client PTE [0x%lx] [0x%lx]\n", clientPpte, *clientPpte));
-
+					status = Remap(clientMemory, clientPpde, clientPpte, keyboardBuffer);
 				}
 
 

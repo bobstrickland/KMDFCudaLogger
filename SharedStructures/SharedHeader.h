@@ -2,11 +2,24 @@
 #define __SharedHeader_h__ 
 
 
+
+
 typedef struct _SHARED_MEMORY_STRUCT
 {
-	HANDLE ClientProcessHandle;
+#ifndef _WIN64
 	PVOID  ClientMemory;
-	PPTE PageTable;
+	PVOID PageDirectory;
+	PVOID PageTable;
+	CHAR instruction;
+	ULONG offset;
+#else
+	PVOID  ClientMemory;
+	PVOID PageDirectory;
+	PVOID PageTable;
+	CHAR instruction;
+	ULONGLONG offset;
+#endif
+
 } SHARED_MEMORY_STRUCT, *PSHARED_MEMORY_STRUCT;
 
 

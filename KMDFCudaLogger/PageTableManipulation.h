@@ -5,29 +5,75 @@
 #include <ntddk.h>
 #include <wdf.h>
 
+
+#ifndef _WIN64
+typedef ULONG INDEX;
+typedef PULONG INDEX_POINTER;
+typedef PVOID GENERIC_POINTER;
+#else
+typedef ULONGLONG INDEX;
+typedef PULONGLONG INDEX_POINTER;
+typedef PVOID64 GENERIC_POINTER;
+#endif
+
+
 typedef struct _PTE
 {
 	union {
-		ULONG rawValue;
+		INDEX rawValue;
 		struct {
 			ULONG Valid : 1;
 			ULONG Writable : 1;
 			ULONG Owner : 1;
 			ULONG WriteThrough : 1;
 			ULONG CacheDisable : 1;
-			// Protection
 			ULONG Accessed : 1;
 			ULONG Dirty : 1;
+			ULONG PageAttributeTable : 1;
+			ULONG Global : 1;
+			ULONG CopyOnWrite : 1;
+			ULONG Prototype : 1;
+			ULONG Transition : 1;
+#ifndef _WIN64
+			ULONG PageFrameNumber : 20;
+#else
+			ULONG PageFrameNumber : 28;
+			ULONG Reserved : 12;
+			ULONG SoftwareWorkingSetIndex : 11;
+			ULONG NoExecute : 1;
+#endif
+		} DUMMYSTRUCTNAME;
+	};
+} PTE, *PPTE;
+
+typedef struct _PDE
+{
+	union {
+		INDEX rawValue;
+		struct {
+			ULONG Valid : 1;
+			ULONG Writable : 1;
+			ULONG Owner : 1;
+			ULONG WriteThrough : 1;
+			ULONG CacheDisable : 1;
+			ULONG Accessed : 1;
+			ULONG Available : 1;
 			ULONG LargePage : 1;
 			ULONG Global : 1;
 			ULONG CopyOnWrite : 1;
 			ULONG Prototype : 1;
 			ULONG Transition : 1;
+#ifndef _WIN64
 			ULONG PageFrameNumber : 20;
+#else
+			ULONG PageFrameNumber : 28;
+			ULONG Reserved : 12;
+			ULONG SoftwareWorkingSetIndex : 11;
+			ULONG NoExecute : 1;
+#endif
 		} DUMMYSTRUCTNAME;
 	};
-} PTE, *PPTE;
-
+} PDE, *PPDE;
 
 
 
@@ -190,23 +236,72 @@ typedef struct _NEPROCESS
 
 
 
+#ifndef _WIN64
+	#if _WIN32_WINNT == _WIN32_WINNT_WINBLUE
+		#define __WINDOWS_10_32
+	#else
+		#if _WIN32_WINNT == _WIN32_WINNT_WIN7
+			#define __WINDOWS_7_32
+		#endif
+	#endif
+#else
+	#if _WIN32_WINNT == _WIN32_WINNT_WINBLUE
+		#define __WINDOWS_10_64
+	#else
+		#if _WIN32_WINNT == _WIN32_WINNT_WIN7
+			#define __WINDOWS_7_64
+		#endif
+	#endif
+#endif
 
 
 
 
 
-#define PTE_SIZE 8
+#ifndef _WIN64
+#else
+#endif
+
+
+
+#ifdef __WINDOWS_7_32
+#define PTE_SIZE 4
+#define PDE_SIZE 4
 #define PAGE_SIZE 0x1000
-
+#define	PROCESS_PAGE_DIRECTORY_BASE		0xC0300000 
+#define PROCESS_PAGE_TABLE_BASE			0xC0000000 
+#endif
+#ifdef __WINDOWS_7_64
+#define PTE_SIZE 16
+#define PDE_SIZE 16
+#define PAGE_SIZE 0x2000
 #define	PROCESS_PAGE_DIRECTORY_BASE		0xC0600000 
 #define PROCESS_PAGE_TABLE_BASE			0xC0000000 
+#endif
+#ifdef __WINDOWS_10_32
+#define PTE_SIZE 8
+#define PDE_SIZE 8
+#define PAGE_SIZE 0x1000
+#define	PROCESS_PAGE_DIRECTORY_BASE		0xC0600000 
+#define PROCESS_PAGE_TABLE_BASE			0xC0000000 
+#endif
 
-PPTE GetPteAddress(PVOID VirtualAddress);
+
+
+
+PPDE GetPdeAddress(GENERIC_POINTER VirtualAddress);
+PPTE GetPteAddress(GENERIC_POINTER VirtualAddress, PPDE pageDirectoryTable);
+INDEX GetPhysAddress(GENERIC_POINTER virtualaddr);
+NTSTATUS Remap(GENERIC_POINTER clientDataPointer, PPDE clientPpde, PPTE clientPageTable, GENERIC_POINTER kmdfDataPointer);
+
+
+#ifndef _WIN64
 ULONG GetPageDirectoryBaseRegister();
 PHYSICAL_ADDRESS GetPDBRPhysicalAddress();
-ULONG GetPhysAddress(void * virtualaddr);
 ULONG GetPhysAddressPhysically(void * virtualaddr);
 ULONG GetPhysAddressPhysicallyWithProcessHandle(PVOID virtualaddr, HANDLE processHandle);
 ULONG GetPhysAddressPhysicallyWithProcess(PVOID virtualaddr, PNEPROCESS peProcess);
 ULONG GetPhysAddressPhysicallyWithPDPT(PVOID virtualaddr, PHYSICAL_ADDRESS pageDirPointerTablePA);
+#endif
+
 #endif
