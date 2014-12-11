@@ -1,15 +1,20 @@
 #include <PageTableManipulation.h>
 
-
+VOID printPteHeader() {
+	KdPrint(("PTE  [Va|RW|Ow|WT|CD|Ac|Di|PT|Gl|PFN\n"));
+}
+VOID printPdeHeader() {
+	KdPrint(("PDE  [Va|RW|Ow|WT|CD|Ac|Av|LP|Gl|PFN\n"));
+}
 VOID printPpte(PPTE ppte) {
-	KdPrint(("PTE [0x%lx] [0x%lx]\n   Va|RW|Ow|WT|CD|Ac|Di|PT|Gl|PFN\n  [ %lu| %lu| %lu| %lu| %lu| %lu| %lu| %lu| %lu|0x%lx\n",
-		ppte, *ppte, ppte->Valid, ppte->Writable, ppte->Owner, ppte->WriteThrough, 
+	KdPrint(("PTE  [ %lu| %lu| %lu| %lu| %lu| %lu| %lu| %lu| %lu|0x%lx\n",
+		ppte->Valid, ppte->Writable, ppte->Owner, ppte->WriteThrough, 
 		ppte->CacheDisable, ppte->Accessed, ppte->Dirty, ppte->PageAttributeTable, ppte->Global, ppte->PageFrameNumber));
 }
 
 VOID printPpde(PPDE ppde) {
-	KdPrint(("PDE [0x%lx] [0x%lx]\n   Va|RW|Ow|WT|CD|Ac|Av|LP|Gl|PFN\n  [ %lu| %lu| %lu| %lu| %lu| %lu| %lu| %lu| %lu|0x%lx\n",
-		ppde, *ppde, ppde->Valid, ppde->Writable, ppde->Owner, ppde->WriteThrough,
+	KdPrint(("PDE  [ %lu| %lu| %lu| %lu| %lu| %lu| %lu| %lu| %lu|0x%lx\n",
+		ppde->Valid, ppde->Writable, ppde->Owner, ppde->WriteThrough,
 		ppde->CacheDisable, ppde->Accessed, ppde->Available, ppde->LargePage, ppde->Global, ppde->PageFrameNumber));
 }
 
@@ -205,13 +210,12 @@ NTSTATUS Remap(GENERIC_POINTER clientDataPointer, PPDE clientPageDirectory, PPTE
 	ULONG kmdfPageFrameNumber = kmdfPageTable->PageFrameNumber;
 	ULONG kmdfBaseAddress = kmdfPageFrameNumber << 12;
 
-	KdPrint(("KMDF   "));
+	KdPrint(("Pre Alter\n"));
+	VOID printPdeHeader();
 	printPpde(kmdfPageDirectory);
-	KdPrint(("KMDF   "));
-	printPpte(kmdfPageTable);
-	KdPrint(("Client "));
 	printPpde(clientPageDirectory);
-	KdPrint(("Client "));
+	VOID printPteHeader();
+	printPpte(kmdfPageTable);
 	printPpte(clientPageTable);
 
 	// Create a bit mask so we can set the page table index all at once
@@ -219,22 +223,33 @@ NTSTATUS Remap(GENERIC_POINTER clientDataPointer, PPDE clientPageDirectory, PPTE
 	INDEX clientPfnValue = clientPageTable->rawValue & ~(0xfff);
 	INDEX clientToKmdfMask = (kmdfPfnValue ^ clientPfnValue);
 
-	(*((INDEX_POINTER)clientPageTable)) |= 0x32; // set accessed ?
+	(*((INDEX_POINTER)clientPageTable)) |= 0x1; // set present
+	//(*((INDEX_POINTER)clientPageTable)) |= 0x10; // set cache disabled
+	(*((INDEX_POINTER)clientPageTable)) |= 0x20; // set accessed ?
+	(*((INDEX_POINTER)clientPageTable)) |= 0x40; // set dirty
 	(*((INDEX_POINTER)clientPageTable)) |= 0x100; // set global
 	(*((INDEX_POINTER)clientPageTable)) |= 0x200; // set copy on write
-	(*((INDEX_POINTER)clientPageTable)) |= 0x200; // set cache disabled
+	//(*((INDEX_POINTER)clientPageTable)) &= ~(1 << 6);  // clear dirty
 	// This line right here gived a BSOD with the error MEMORY_MANAGEMENT
 	(*((INDEX_POINTER)clientPageTable)) ^= clientToKmdfMask;
 
 
-	KdPrint(("New KMDF   "));
+	KdPrint(("Post Alter\n"));
+	VOID printPdeHeader();
 	printPpde(kmdfPageDirectory);
-	KdPrint(("New KMDF   "));
-	printPpte(kmdfPageTable);
-	KdPrint(("New Client "));
 	printPpde(clientPageDirectory);
-	KdPrint(("New Client "));
+	VOID printPteHeader();
+	printPpte(kmdfPageTable);
 	printPpte(clientPageTable);
+
+
+
+	__asm __volatile
+	{
+		invlpg  clientPageTable; // flush the TLB
+	}
+
+
 	return status;
 }
 
