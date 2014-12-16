@@ -42,7 +42,6 @@ VOID play2() {
 }
 /**/
 
-
 NTSTATUS CreateControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath) {
 	KdPrint(("CreateControlDevice IRQ Level [%u]", KeGetCurrentIrql()));
 
@@ -107,7 +106,6 @@ NTSTATUS CreateControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regis
 	ioQueueConfig.DefaultQueue = TRUE;
 	ioQueueConfig.EvtIoDefault = ReadKeyboardBuffer;
 	status = WdfIoQueueCreate(ControlDevice, &ioQueueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue); // pointer to default queue
-
 	if (!NT_SUCCESS(status)) {
 		KdPrint(("WdfIoQueueCreate FAILED 0x%lx\n", status));
 		return status;
@@ -118,7 +116,6 @@ NTSTATUS CreateControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regis
 	WdfControlFinishInitializing(ControlDevice);
 
 	KdPrint(("WdfControlFinishInitializing finished\n"));
-
 	return status;
 	// ControlDevice
 }
@@ -135,6 +132,7 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 	WDFMEMORY memoryHandle;
 	//PVOID memoryPointer;
 	size_t Length;
+	size_t memoryLength;
 
 	//WDF_REQUEST_PARAMETERS_INIT(&params);
 	//WdfRequestGetParameters(Request, &params);
@@ -167,7 +165,6 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 			return;
 		}
 		else {
-
 			CHAR instruction = userSharedMemory->instruction;
 			if (instruction) {
 				KdPrint(("ReadKeyboardBuffer Client instruction is [%c]\n", instruction));
@@ -184,9 +181,9 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 					KdPrint(("ReadKeyboardBuffer usermem is  [0x%lx] Page Directory is [0x%lx] Page Table is [0x%lx]\n", clientMemory, clientPpde, clientPpte));
 
 					status = Remap(clientMemory, clientPpde, clientPpte, keyboardBuffer);
+					WdfRequestComplete(Request, status);
+					return;
 				}
-
-
 			}
 			else {
 				KdPrint(("ReadKeyboardBuffer userPageTable is NULL\n"));
@@ -200,8 +197,10 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 		status = STATUS_RESOURCE_DATA_NOT_FOUND;
 	}
 	// Set transfer information
-	WdfRequestSetInformation(Request, (ULONG_PTR)Length);
-	WdfRequestComplete(Request, status);
+	KdPrint(("ReadKeyboardBuffer returning to user length [%u] status [0x%lx]\n", Length, status));
+//	WdfRequestSetInformation(Request, &Length);
+//	WdfRequestComplete(Request, status);
+	WdfRequestCompleteWithInformation(Request, status, &Length);
 	return;
 
 }
