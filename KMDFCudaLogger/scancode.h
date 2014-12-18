@@ -16,6 +16,9 @@
 #define CTRL  0x05 //control key   
 #define ALT   0x06 //alt key   
 
+#define KEY_MAKE  0
+#define KEY_BREAK 1
+
 char KeyMap[84] = {
 	INVALID, //0   
 	INVALID, //1   

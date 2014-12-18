@@ -99,10 +99,26 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 			KdPrint((" fo [0x%lx] [0x%lx] \n", fileObject, fileObjectPA));
 
 
-			KdPrint((" ScanCode: %x %c %s",
+			KdPrint((" ScanCode: %x %c %s uid[0x%x]res[0x%x]xtra[0x%lx] ",
 				keys->MakeCode,
 				KeyMap[keys->MakeCode],
-				keys->Flags == KEY_BREAK ? "Key Up" : keys->Flags == KEY_MAKE ? "Key Down" : "Unknown Flag"));
+				keys->Flags == KEY_BREAK ? "Key Up" : keys->Flags == KEY_MAKE ? "Key Down" : "Unknown Flag",
+				keys->UnitId, keys->Reserved, keys->ExtraInformation
+
+				));
+
+
+			PUSHORT pflag = &(keys->Flags);
+			PHYSICAL_ADDRESS flagPA = MmGetPhysicalAddress(pflag);
+			KdPrint((" flag [0x%x] [0x%lx] [0x%lx]", *pflag, pflag, flagPA));
+			PUSHORT make = &(keys->MakeCode);
+			PHYSICAL_ADDRESS makePA = MmGetPhysicalAddress(make);
+			KdPrint((" make [0x%x] [0x%lx] [0x%lx]", *make, make, makePA));
+
+
+
+
+			KdPrint(("\n"));
 		}
 	}//end if  
 	/**/

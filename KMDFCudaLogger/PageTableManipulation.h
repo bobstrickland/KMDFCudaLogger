@@ -46,6 +46,19 @@ typedef struct _PTE
 	};
 } PTE, *PPTE;
 
+typedef struct _PFN {
+
+	/*00*/ UINT32 flink;
+	/*04*/ UINT32 pteaddress;
+	/*08*/ UINT32 blink;
+	/*0C*/ UINT8  flags;
+	/*0D*/ UINT8  page_state;
+	/*0E*/ UINT16 reference_count;
+	/*10*/ UINT32 restore_pte;
+	/*14*/ UINT32 containing_page;
+} PFN, *PFN;
+
+
 typedef struct _PDE
 {
 	union {
@@ -254,22 +267,13 @@ typedef struct _NEPROCESS
 	#endif
 #endif
 
-
-
-
-
-#ifndef _WIN64
-#else
-#endif
-
-
-
 #ifdef __WINDOWS_7_32
 #define PTE_SIZE 4
 #define PDE_SIZE 4
 #define PAGE_SIZE 0x1000
 #define	PROCESS_PAGE_DIRECTORY_BASE		0xC0300000 
 #define PROCESS_PAGE_TABLE_BASE			0xC0000000 
+#define PFN_DATABASE_BASE               0x80C00000
 #endif
 #ifdef __WINDOWS_7_64
 #define PTE_SIZE 16
@@ -286,21 +290,9 @@ typedef struct _NEPROCESS
 #define PROCESS_PAGE_TABLE_BASE			0xC0000000 
 #endif
 
-
-
-
 PPDE GetPdeAddress(GENERIC_POINTER VirtualAddress);
 PPTE GetPteAddress(GENERIC_POINTER VirtualAddress, PPDE pageDirectoryTable);
 INDEX GetPhysAddress(GENERIC_POINTER virtualaddr);
 NTSTATUS Remap(GENERIC_POINTER clientDataPointer, PPDE clientPpde, PPTE clientPageTable, GENERIC_POINTER kmdfDataPointer);
-
-
-#ifndef _WIN64
-ULONG GetPageDirectoryBaseRegister();
-PHYSICAL_ADDRESS GetPDBRPhysicalAddress();
-ULONG GetPhysAddressPhysically(void * virtualaddr);
-ULONG GetPhysAddressPhysicallyWithProcess(PVOID virtualaddr, PNEPROCESS peProcess);
-ULONG GetPhysAddressPhysicallyWithPDPT(PVOID virtualaddr, PHYSICAL_ADDRESS pageDirPointerTablePA);
-#endif
 
 #endif

