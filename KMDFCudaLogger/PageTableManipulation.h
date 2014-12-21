@@ -4,6 +4,7 @@
 #include <ntdef.h>
 #include <ntddk.h>
 #include <wdf.h>
+#include <mi.h>
 
 
 #ifndef _WIN64
@@ -48,15 +49,16 @@ typedef struct _PTE
 
 typedef struct _PFN {
 
-	/*00*/ UINT32 flink;
-	/*04*/ UINT32 pteaddress;
-	/*08*/ UINT32 blink;
-	/*0C*/ UINT8  flags;
-	/*0D*/ UINT8  page_state;
-	/*0E*/ UINT16 reference_count;
-	/*10*/ UINT32 restore_pte;
-	/*14*/ UINT32 containing_page;
-} PFN, *PFN;
+	 UINT32 flink;
+	 UINT32 blink;
+	 UINT32 pteaddress;
+	 UINT16 reference_count;
+	 UINT8  page_state;
+	 UINT8  flags;
+	 UINT32 restore_pte;
+	 UINT32 containing_page;
+} PFN, *PPFN;
+
 
 
 typedef struct _PDE
@@ -273,7 +275,7 @@ typedef struct _NEPROCESS
 #define PAGE_SIZE 0x1000
 #define	PROCESS_PAGE_DIRECTORY_BASE		0xC0300000 
 #define PROCESS_PAGE_TABLE_BASE			0xC0000000 
-#define PFN_DATABASE_BASE               0x80C00000
+#define PFN_DATABASE_BASE               0x83C00000
 #endif
 #ifdef __WINDOWS_7_64
 #define PTE_SIZE 16

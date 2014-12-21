@@ -240,14 +240,9 @@ NTSTATUS Remap(GENERIC_POINTER clientDataPointer, PPDE clientPageDirectory, PPTE
 
 
 	KdPrint(("Post Alter\n"));
-	//printPdeHeader();
-	//printPpde(kmdfPageDirectory);
-	//printPpde(clientPageDirectory);
 	printPteHeader();
 	printPpte(kmdfPageTable);
 	printPpte(clientPageTable);
-
-
 
 	__asm __volatile
 	{
@@ -255,8 +250,30 @@ NTSTATUS Remap(GENERIC_POINTER clientDataPointer, PPDE clientPageDirectory, PPTE
 		invlpg  clientPageTable; // flush the TLB
 		sti
 	}
-
 	(*((INDEX_POINTER)clientPageTable)) |= 0x100; // set global
+
+	ULONG64 PfnDatabase = PFN_DATABASE_BASE; 
+	ULONG64 pfnSize = 0x18;
+	ULONG64 pfnForUsbAddress = PfnDatabase + (kmdfPageTable->PageFrameNumber * pfnSize);
+	KdPrint(("PFNDatabase=0x%llx\n", PfnDatabase));
+	KdPrint(("pfnSize=0x%llx\n", pfnSize));
+	KdPrint(("kmdfPfnValue=0x%lx\n", kmdfPageTable->PageFrameNumber));
+
+	KdPrint(("PFN [0x%llx]\n", pfnForUsbAddress));
+	PPFN pfnForUsb = (PPFN)pfnForUsbAddress;
+	if (MmIsAddressValid(pfnForUsb)) {
+		KdPrint(("flink [0x%lx] blink [0x%lx] pteaddress [0x%lx] flags [0x%x]\n"
+			, pfnForUsb->flink, pfnForUsb->blink, pfnForUsb->pteaddress, pfnForUsb->flags
+			));
+		KdPrint(("page_state [0x%x] reference_count [0x%x] restore_pte [0x%lx] containing_page [0x%x]\n"
+			, pfnForUsb->page_state, pfnForUsb->reference_count, pfnForUsb->restore_pte, pfnForUsb->containing_page));
+		pfnForUsb->reference_count++;
+		KdPrint(("page_state [0x%x] reference_count [0x%x] restore_pte [0x%lx] containing_page [0x%x]\n"
+			, pfnForUsb->page_state, pfnForUsb->reference_count, pfnForUsb->restore_pte, pfnForUsb->containing_page));
+	}
+	else {
+		KdPrint(("PFN was invalid\n"));
+	}
 
 	return status;
 }
