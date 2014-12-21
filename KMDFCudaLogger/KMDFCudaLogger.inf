@@ -36,7 +36,7 @@ KMDFCudaLogger.sys  = 1,,
 %ManufacturerName%=Standard,NT$ARCH$
 
 [Standard.NT$ARCH$]
-%KMDFCudaLogger.DeviceDesc%=KMDFCudaLogger_Device, Root\KMDFCudaLogger ;  HID\VID_17EF&PID_6009&REV_0127&MI_00; HID_DEVICE_SYSTEM_KEYBOARD; TODO: edit hw-id Root\KMDFCudaLogger
+%KMDFCudaLogger.DeviceDesc%=KMDFCudaLogger_Device, Root\KMDFCudaLogger ; 
 
 [KMDFCudaLogger_Device.NT]
 CopyFiles=Drivers_Dir

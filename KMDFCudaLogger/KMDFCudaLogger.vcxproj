@@ -276,6 +276,7 @@
     <Link>
       <TreatLinkerWarningAsErrors>false</TreatLinkerWarningAsErrors>
       <AdditionalDependencies>%(AdditionalDependencies);$(DDK_LIB_PATH)\wdmsec.lib</AdditionalDependencies>
+      <Version>6.1</Version>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
@@ -400,6 +401,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ControlDevice.h" />
+    <ClInclude Include="UnpublishedDebugger.h" />
     <ClInclude Include="DiagnosticFunctions.h" />
     <ClInclude Include="Driver.h" />
     <ClInclude Include="mmHook.h" />

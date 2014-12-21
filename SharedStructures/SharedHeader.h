@@ -2,7 +2,9 @@
 #define __SharedHeader_h__ 
 
 
-
+#ifndef CHAR
+typedef char CHAR;
+#endif
 
 typedef struct _SHARED_MEMORY_STRUCT
 {
@@ -10,7 +12,7 @@ typedef struct _SHARED_MEMORY_STRUCT
 	PVOID  ClientMemory;
 	PVOID PageDirectory;
 	PVOID PageTable;
-	CHAR instruction;
+	CHAR  instruction;
 	ULONG offset;
 #else
 	PVOID  ClientMemory;

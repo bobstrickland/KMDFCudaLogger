@@ -159,7 +159,7 @@ int main(int argc, _TCHAR* argv[]) {
 				SYSTEMTIME systemTime;
 				GetSystemTime(&systemTime);
 				WORD CurrentMinute = systemTime.wMinute;
-				WORD ExitMinute = systemTime.wMinute + 2;
+				WORD ExitMinute = systemTime.wMinute + 3;
 				while (CurrentMinute != ExitMinute) {
 					/*
 					

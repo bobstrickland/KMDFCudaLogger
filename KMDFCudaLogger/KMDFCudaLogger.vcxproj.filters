@@ -37,6 +37,9 @@
     <ClInclude Include="PageTableManipulation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="UnpublishedDebugger.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Driver.c">
