@@ -46,7 +46,7 @@ PVOID GetPteAddress(PVOID virtualaddr);
 #define RSHIFT 0x04 //right shift key   
 #define CTRL  0x05 //control key   
 #define ALT   0x06 //alt key   
-static char KeyMap[84] = {
+char KeyMap[84] = {
 	INVALID, //0   
 	INVALID, //1   
 	'1', //2   

