@@ -14,6 +14,20 @@
     <ScriptDeviceQuery />
     <DebugDeployment>False</DebugDeployment>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Victim7 Debug|x64'">
+    <EnableDeployment>True</EnableDeployment>
+    <RemoveDriver>True</RemoveDriver>
+    <InstallMode>HardwareId</InstallMode>
+    <HardwareIdString>Root\KmdfHelloWorld</HardwareIdString>
+    <CommandLine />
+    <ScriptPath>C:\Program Files (x86)\Windows Kits\8.1\Testing\Tests\Utilities\DefaultDriverPackageInstallationTask.dll</ScriptPath>
+    <DbgengRemoteMachineName>sleepy</DbgengRemoteMachineName>
+    <DbgengKernelMachineName>sleepy</DbgengKernelMachineName>
+    <DeployFiles />
+    <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
+    <ScriptDeviceQuery />
+    <DebugDeployment>False</DebugDeployment>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
     <EnableDeployment>True</EnableDeployment>
     <RemoveDriver>True</RemoveDriver>
@@ -23,6 +37,20 @@
     <ScriptPath>C:\Program Files (x86)\Windows Kits\8.1\Testing\Tests\Utilities\DefaultDriverPackageInstallationTask.dll</ScriptPath>
     <DbgengRemoteMachineName>sleepy</DbgengRemoteMachineName>
     <DbgengKernelMachineName>sleepy</DbgengKernelMachineName>
+    <DeployFiles />
+    <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
+    <ScriptDeviceQuery />
+    <DebugDeployment>False</DebugDeployment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Victim7 Debug|Win32'">
+    <EnableDeployment>True</EnableDeployment>
+    <RemoveDriver>True</RemoveDriver>
+    <InstallMode>DriverTest</InstallMode>
+    <HardwareIdString />
+    <CommandLine />
+    <ScriptPath>C:\Program Files (x86)\Windows Kits\8.1\Testing\Tests\Utilities\DefaultDriverPackageInstallationTask.dll</ScriptPath>
+    <DbgengRemoteMachineName>sneezy</DbgengRemoteMachineName>
+    <DbgengKernelMachineName>sneezy</DbgengKernelMachineName>
     <DeployFiles />
     <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
     <ScriptDeviceQuery />
@@ -42,7 +70,35 @@
     <ScriptDeviceQuery />
     <DebugDeployment>False</DebugDeployment>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='KMDF Victim 7 Debug|Win32'">
+    <EnableDeployment>True</EnableDeployment>
+    <RemoveDriver>True</RemoveDriver>
+    <InstallMode>DriverTest</InstallMode>
+    <HardwareIdString />
+    <CommandLine />
+    <ScriptPath>C:\Program Files (x86)\Windows Kits\8.1\Testing\Tests\Utilities\DefaultDriverPackageInstallationTask.dll</ScriptPath>
+    <DbgengRemoteMachineName>victim</DbgengRemoteMachineName>
+    <DbgengKernelMachineName>victim</DbgengKernelMachineName>
+    <DeployFiles />
+    <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
+    <ScriptDeviceQuery />
+    <DebugDeployment>False</DebugDeployment>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <EnableDeployment>True</EnableDeployment>
+    <RemoveDriver>False</RemoveDriver>
+    <InstallMode>DriverTest</InstallMode>
+    <HardwareIdString />
+    <CommandLine />
+    <ScriptPath>C:\Program Files (x86)\Windows Kits\8.1\Testing\Tests\Utilities\DefaultDriverPackageInstallationTask.dll</ScriptPath>
+    <DbgengRemoteMachineName>grumpy</DbgengRemoteMachineName>
+    <DbgengKernelMachineName>grumpy</DbgengKernelMachineName>
+    <DeployFiles />
+    <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
+    <ScriptDeviceQuery />
+    <DebugDeployment>False</DebugDeployment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='KMDF Victim 7 Debug|x64'">
     <EnableDeployment>True</EnableDeployment>
     <RemoveDriver>False</RemoveDriver>
     <InstallMode>DriverTest</InstallMode>

@@ -173,12 +173,9 @@ int main(int argc, _TCHAR* argv[]) {
 	return 0;
 }
 
-
 PVOID GetPdeAddress(PVOID virtualaddr) {
-	//ULONG pageDirectoryIndex = (ULONG)virtualaddr >> 21;
-	ULONG pageDirectoryIndex = (ULONG)virtualaddr >> 22;
-	printf("\n\nVirtualAddress [0x%lx] pageDirectoryIndex is [0x%lx]\n", virtualaddr, pageDirectoryIndex);
-	PVOID pageDirectory = (PVOID)(PROCESS_PAGE_DIRECTORY_BASE + (pageDirectoryIndex * PTE_SIZE));
+	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
+	PVOID pageDirectory = (PVOID)(getPageDirectoryBase() + (pageDirectoryIndex * getPdeSize()));
 	printf("pageDirectoryTable   [0x%lx] ", pageDirectory);
 	if ((pageDirectory)) {
 		return pageDirectory;
@@ -190,11 +187,9 @@ PVOID GetPdeAddress(PVOID virtualaddr) {
 }
 
 PVOID GetPteAddress(PVOID virtualaddr) {
-	//ULONG pageDirectoryIndex = (ULONG)virtualaddr >> 21;
-	//ULONG pageTableIndex = (ULONG)virtualaddr >> 12 & 0x01FF;
-	ULONG pageDirectoryIndex = (ULONG)virtualaddr >> 22;
-	ULONG pageTableIndex = (ULONG)virtualaddr >> 12 & 0x03FF;
-	PVOID pageTable = (PVOID)(PROCESS_PAGE_TABLE_BASE + (pageTableIndex * PTE_SIZE) + (PAGE_SIZE * pageDirectoryIndex));
+	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
+	ULONG pageTableIndex = GetPageTableIndex(virtualaddr);
+	PVOID pageTable = (PVOID)(getPageTableBase() + (pageTableIndex * getPteSize()) + (PAGE_SIZE * pageDirectoryIndex));
 	printf("pageTable   [0x%lx] \n", pageTable);
 	if ((pageTable)) {
 		return pageTable;
@@ -202,6 +197,59 @@ PVOID GetPteAddress(PVOID virtualaddr) {
 	else {
 		printf(" is INVALID\n");
 		return NULL;
+	}
+}
+
+ULONG getPdeSize() {
+	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
+		return PAE_PDE_SIZE;
+	}
+	else {
+		return X32_PDE_SIZE;
+	}
+}
+ULONG getPteSize() {
+	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
+		return PAE_PTE_SIZE;
+	}
+	else {
+		return X32_PTE_SIZE;
+	}
+}
+
+
+ULONG getPageDirectoryBase() {
+	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
+		return PAE_PROCESS_PAGE_DIRECTORY_BASE;
+	}
+	else {
+		return X32_PROCESS_PAGE_DIRECTORY_BASE;
+	}
+}
+
+ULONG getPageTableBase() {
+	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
+		return PAE_PROCESS_PAGE_TABLE_BASE;
+	}
+	else {
+		return X32_PROCESS_PAGE_TABLE_BASE;
+	}
+}
+
+ULONG GetPageTableIndex(PVOID virtualaddr) {
+	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
+		return (ULONG)virtualaddr >> 12 & 0x01FF;
+	}
+	else {
+		return (ULONG)virtualaddr >> 12 & 0x03FF;
+	}
+}
+ULONG GetPageDirectoryIndex(PVOID virtualaddr) {
+	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
+		return (ULONG)virtualaddr >> 21;
+	}
+	else {
+		return (ULONG)virtualaddr >> 22;
 	}
 }
 

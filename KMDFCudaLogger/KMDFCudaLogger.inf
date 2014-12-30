@@ -29,7 +29,7 @@ HKR,,Icon,,-5
 KMDFCudaLogger.sys  = 1,,
 
 ;*****************************************
-; Install Section
+; Install Section devcon install KMDFCudaLogger.inf Root\KMDFCudaLogger to install
 ;*****************************************
 
 [Manufacturer]

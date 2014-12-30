@@ -52,6 +52,7 @@ DRIVER_INITIALIZE DriverEntry;
 int numPendingIrps = 0;
 
 PKEYBOARD_INPUT_DATA keyboardBuffer = NULL;
+PFILE_OBJECT keyboardBufferFileObject = NULL;
 
 _Use_decl_annotations_
 NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOID Context)
@@ -73,14 +74,17 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 		if (MmIsAddressValid(keys)) {
 			keyboardBuffer = keys;
 
-
 //			PVOID userBuffer = pIrp->UserBuffer;
 			PFILE_OBJECT fileObject = pIrp->Tail.Overlay.OriginalFileObject;
+			keyboardBufferFileObject = fileObject;
 			KdPrint(("ORC : "));
 
 			PHYSICAL_ADDRESS fileObjectPA = MmGetPhysicalAddress(fileObject);
 			PHYSICAL_ADDRESS keysPA = MmGetPhysicalAddress(keys);
-			
+
+			ULONG keysPAA = GetPhysAddressPhysically(keys);
+			KdPrint(("\nXERCES keys [0x%lx] keys [0x%lx] \n", keysPA, keysPAA));
+
 
 //			PVOID cr3 = GetCr3();
 //			KdPrint((" cr3 [0x%lx] ", cr3));
@@ -96,7 +100,14 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 			//KdPrint((" keys [0x%lx] [0x%lx] [0x%lx] ", keys, keysPA, keysHpa));
 
 			KdPrint((" keys [0x%lx] [0x%llx]  H[0x%lx] L[0x%lx] ", keys, keysPA.QuadPart, keysPA.u.HighPart, keysPA.u.LowPart));
-			KdPrint((" fo [0x%lx] [0x%lx] \n", fileObject, fileObjectPA));
+			//KdPrint((" fo [0x%lx] [0x%lx] \n", fileObject, fileObjectPA));
+
+
+			PCHAR p = (PCHAR)fileObject; int i = 0;
+			KdPrint((" fo [0x%lx] [0x%lx]  [0x%x][0x%x][0x%x][0x%x][0x%x][0x%x][0x%x][0x%x][0x%x][0x%x][0x%x][0x%x]", fileObject, fileObjectPA
+				, p[i++], p[i++], p[i++], p[i++], p[i++], p[i++], p[i++], p[i++], p[i++], p[i++], p[i++], p[i++]));
+
+
 
 
 			KdPrint((" ScanCode: %x %c %s uid[0x%x]res[0x%x]xtra[0x%lx] ",
