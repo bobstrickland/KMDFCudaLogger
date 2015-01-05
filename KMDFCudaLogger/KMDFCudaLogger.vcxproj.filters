@@ -54,9 +54,6 @@
     <ClCompile Include="PageTableManipulation.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="notes.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="KMDFCudaLogger.inf">

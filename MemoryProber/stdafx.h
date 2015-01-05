@@ -13,6 +13,7 @@
 typedef unsigned long ULONG;
 typedef unsigned short USHORT;
 typedef void *  PVOID;
+typedef unsigned char  BOOLEAN;
 
 typedef struct _KEYBOARD_INPUT_DATA {
 	USHORT UnitId;

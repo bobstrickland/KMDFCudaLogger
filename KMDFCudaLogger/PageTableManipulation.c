@@ -88,6 +88,14 @@ ULONG GetPageDirectoryIndex(PVOID virtualaddr) {
 		return (ULONG)virtualaddr >> 22;
 	}
 }
+ULONG GetPageDirectoryPointerIndex(PVOID virtualaddr) {
+	if (ExIsProcessorFeaturePresent(PF_PAE_ENABLED)) {
+		return (ULONG)virtualaddr >> 30;
+	}
+	else {
+		return NULL;
+	}
+}
 
 VOID printPteHeader() {
 	KdPrint(("PTE  [Va|RW|Ow|WT|CD|Ac|Di|PT|Gl|PFN\n"));
@@ -109,21 +117,6 @@ VOID printPpde(PPDE ppde) {
 
 
 
-/** /
-PPTE  GetVirtualPpte(PVOID virtualaddr) {
-	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
-	ULONG pageTableIndex = GetPageTableIndex(virtualaddr);
-	PPTE pageTable = (PPTE)(getPageTableBase() + (pageTableIndex * getPteSize()) + (PAGE_SIZE * pageDirectoryIndex));
-	return pageTable;
-}
-PPDE  GetVirtualPpde(PVOID virtualaddr) {
-	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
-	PPDE pageDirectoryTable = (PPDE)(getPageDirectoryBase() + (pageDirectoryIndex * getPdeSize()));
-	return pageDirectoryTable;
-}
-/**/
-
-
 PHYSICAL_ADDRESS GetPDBRPhysicalAddress()
 {
 	ULONG pdbrValue = GetPageDirectoryBaseRegister();
@@ -132,92 +125,17 @@ PHYSICAL_ADDRESS GetPDBRPhysicalAddress()
 	returnValue.u.LowPart = pdbrValue;
 	return returnValue;
 }
-ULONG GetPhysAddressPhysically(PVOID virtualaddr)
-{
-	ULONG pageDirectoryPointerIndex = (ULONG)virtualaddr >> 30;
-	ULONG pageDirectoryIndex = (ULONG)virtualaddr >> 21 & 0x01FF;
-	ULONG pageTableIndex = (ULONG)virtualaddr >> 12 & 0x01FF;
-	ULONG offset = (ULONG)virtualaddr & 0x0fff;
-	DbgPrint("\n\nVirtualAddress [0x%lx] is  [0x%lx] [0x%lx] [0x%lx] [0x%lx]\n", virtualaddr, pageDirectoryPointerIndex, pageDirectoryIndex, pageTableIndex, offset);
-	DbgPrint("Looking physical \n");
 
-	// get the PageDirectoryPointerTable Entry
-	PHYSICAL_ADDRESS pageDirPointerTablePA = GetPDBRPhysicalAddress();
-	pageDirPointerTablePA.QuadPart = pageDirPointerTablePA.QuadPart + (pageDirectoryPointerIndex*sizeof(PHYSICAL_ADDRESS));
-	PPTE pageDirectoryPointerTable = MmMapIoSpace(pageDirPointerTablePA, sizeof(PTE), MmNonCached);
-	if (MmIsAddressValid(pageDirectoryPointerTable)) {
+BOOLEAN IsLargePage(PVOID virtualAddress) {
+	PPDE  ppde = GetPdeAddress(virtualAddress);
+	return ppde->LargePage;
+}
 
-		// get the PageDirectoryTable Entry
-		ULONG pdpPFN = pageDirectoryPointerTable->PageFrameNumber;
-		ULONG pdBaseAddress = pdpPFN << 12;
-		ULONG pdPhysicalAddress = pdBaseAddress + (pageDirectoryIndex * getPdeSize());
-		DbgPrint("pageDirectoryPointerTable   [0x%lx][0x%lx] PageFrameNumber is [0x%lx] [0x%lx] [0x%lx]\n", pageDirectoryPointerTable, pageDirPointerTablePA, pdpPFN, pdBaseAddress, pdPhysicalAddress);
-		PHYSICAL_ADDRESS pdtPhysicalAddress;
-		pdtPhysicalAddress.u.HighPart = 0x0;
-		pdtPhysicalAddress.u.LowPart = pdPhysicalAddress;
-		PPDE pageDirectoryTable = MmMapIoSpace(pdtPhysicalAddress, sizeof(PDE), MmNonCached);
-		if (MmIsAddressValid(pageDirectoryTable)) {
-			if (pageDirectoryTable->LargePage) {
-				ULONG pdPFN = pageDirectoryTable->PageFrameNumber;
-				ULONG basePhysicalAddress = pdPFN << 12;
-				ULONG specificAddress = basePhysicalAddress + offset;
-				DbgPrint("pageDirectoryTable   [0x%lx][0x%lx] is LARGE.  PageFrameNumber is [0x%lx] [0x%lx] [0x%lx]\n", pageDirectoryTable, pdPhysicalAddress, pdPFN, basePhysicalAddress, specificAddress);
-				DbgPrint("Physical address for [0x%lx] is [0x%lx]\n", virtualaddr, specificAddress);
-				MmUnmapIoSpace(pageDirectoryTable, sizeof(PDE));
-				MmUnmapIoSpace(pageDirectoryPointerTable, sizeof(PTE));
-				return specificAddress;
-			}
-			else {
-
-
-				// get the PageTable Entry
-				ULONG pdPFN = pageDirectoryTable->PageFrameNumber;
-				ULONG ptBasePhysicalAddress = pdPFN << 12;
-				ULONG ptSpecificAddress = ptBasePhysicalAddress + (pageTableIndex * getPteSize());
-				DbgPrint("pageDirectoryTable   [0x%lx][0x%lx] PageFrameNumber is [0x%lx] [0x%lx] [0x%lx]\n", pageDirectoryTable, pdPhysicalAddress, pdPFN, ptBasePhysicalAddress, ptSpecificAddress);
-				PHYSICAL_ADDRESS ptPhysicalAddress;
-				ptPhysicalAddress.u.HighPart = 0x0;
-				ptPhysicalAddress.u.LowPart = ptSpecificAddress;
-				PPTE pageTable = MmMapIoSpace(ptPhysicalAddress, sizeof(PTE), MmNonCached);
-				if (MmIsAddressValid(pageTable)) {
-
-					// get the physical address
-					ULONG ptPFN = pageTable->PageFrameNumber;
-					ULONG basePhysicalAddress = ptPFN << 12;
-					ULONG specificAddress = basePhysicalAddress + offset;
-					DbgPrint("pageTable   [0x%lx][0x%lx] PageFrameNumber is [0x%lx] [0x%lx] [0x%lx]\n", pageTable, ptSpecificAddress, ptPFN, basePhysicalAddress, specificAddress);
-					DbgPrint("Physical address for [0x%lx] is [0x%lx]\n", virtualaddr, specificAddress);
-					MmUnmapIoSpace(pageTable, sizeof(PTE));
-					MmUnmapIoSpace(pageDirectoryTable, sizeof(PDE));
-					MmUnmapIoSpace(pageDirectoryPointerTable, sizeof(PTE));
-					return specificAddress;
-				}
-				else {
-					DbgPrint("pageTable is INVALID\n");
-					if (pageTable) {
-						MmUnmapIoSpace(pageTable, sizeof(PTE));
-					}
-					MmUnmapIoSpace(pageDirectoryTable, sizeof(PTE));
-					MmUnmapIoSpace(pageDirectoryPointerTable, sizeof(PTE));
-					return NULL;
-				}
-			}
-		}
-		else {
-			DbgPrint("pageDirectoryTable is INVALID\n");
-			if (pageDirectoryTable) {
-				MmUnmapIoSpace(pageDirectoryTable, sizeof(PTE));
-			}
-			MmUnmapIoSpace(pageDirectoryPointerTable, sizeof(PTE));
-			return NULL;
-		}
-	}
-	else {
-		DbgPrint(" pageDirectoryPointerTable is INVALID\n");
-		if (pageDirectoryPointerTable) {
-			MmUnmapIoSpace(pageDirectoryPointerTable, sizeof(PTE));
-		}
-		return NULL;
+ULONG GetOffset(PVOID virtualAddress) {
+	if (IsLargePage(virtualAddress)) {
+		return(ULONG)virtualAddress & 0x1fffff;
+	} else {
+		return(ULONG)virtualAddress & 0xfff;
 	}
 }
 
@@ -225,8 +143,6 @@ PPTE  GetPteAddress(PVOID virtualaddr) {
 	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
 	ULONG pageTableIndex = GetPageTableIndex(virtualaddr); 
 	PPTE pageTable = (PPTE)(getPageTableBase() + (pageTableIndex * getPteSize()) + (PAGE_SIZE * pageDirectoryIndex));
-	DbgPrint("VirtualAddress [0x%lx] pageDirectoryIndex is [0x%lx]  pageTableIndex is [0x%lx]  pageTable is [0x%lx]\n",
-		virtualaddr, pageDirectoryIndex, pageTableIndex, pageTable);
 	if (MmIsAddressValid(pageTable)) {
 		return pageTable;
 	}
@@ -239,8 +155,6 @@ PPTE  GetPteAddress(PVOID virtualaddr) {
 PPDE  GetPdeAddress(PVOID virtualaddr){
 	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
 	PPDE pageDirectoryTable = (PPDE)(getPageDirectoryBase() + (pageDirectoryIndex * getPdeSize()));
-	DbgPrint("\n\nVirtualAddress [0x%lx] pageDirectoryIndex [0x%lx] pageDirectoryTable [0x%lx] ", 
-		virtualaddr, pageDirectoryIndex, pageDirectoryTable);
 	if (MmIsAddressValid(pageDirectoryTable)) {
 		return pageDirectoryTable;
 	}
@@ -254,7 +168,6 @@ PPDE  GetPdeAddress(PVOID virtualaddr){
 
 ULONG GetPhysAddress(PVOID virtualaddr)
 {
-
 	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
 	ULONG pageTableIndex = GetPageTableIndex(virtualaddr);
 	PPTE pageTable = GetPteAddress(virtualaddr);
@@ -288,40 +201,28 @@ ULONG GetPhysAddress(PVOID virtualaddr)
 	}
 }
 
-
-NTSTATUS Remap(PVOID clientDataPointer, PPDE clientPageDirectory, PPTE clientPageTable, PVOID kmdfDataPointer)
+NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 {
 	NTSTATUS status = STATUS_SUCCESS;
 	ULONG64 PfnDatabase = getPfnDatabaseBase();
 	ULONG64 pfnSize = getPfnSize(); 
+	 
+	PPFN    clientOriginalPfn;
 	ULONG64 pfnForUsbAddress;
 	ULONG   kmdfPhysicalAddress;
 	ULONG   kmdfBaseAddress;
 
 	if (ExIsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		KdPrint(("PAE Enabled\n"));
+		KdPrint(("RE_MAP PAE Enabled\n"));
 	}
 	else {
-		KdPrint(("No PAE\n"));
+		KdPrint(("RE_MAP No PAE\n"));
 	}
 
-//	ULONG pageDirectoryIndex = GetPageDirectoryIndex(clientDataPointer);
-#ifdef __WINDOWS_7_64
-	ULONGLONG extendedPageDirectoryIndex = (ULONGLONG)clientDataPointer >> 39 & 0x01FF;
-	ULONGLONG pageDirectoryPointerIndex  = (ULONGLONG)clientDataPointer >> 30 & 0x01FF;
-#endif
-//	ULONG pageTableIndex = GetPageTableIndex(clientDataPointer); //(ULONG)clientDataPointer >> 12 & 0x01FF;
 	ULONG clientOffset = (ULONG)clientDataPointer & 0x0fff;
 	ULONG kmdfOffset = (ULONG)kmdfDataPointer & 0x0fff;
 
-	ULONG clientPageFrameNumber = clientPageTable->PageFrameNumber;
-	ULONG clientBaseAddress     = clientPageFrameNumber << 12;
-	ULONG finalPhysicalAddress  = clientBaseAddress + clientOffset;
 
-
-	KdPrint(("ReadKeyboardBuffer Client Buffer Address is [0x%lx]\n", finalPhysicalAddress));
-
-	KdPrint(("GetPdeAddress\n"));
 	PPDE  kmdfPageDirectory = GetPdeAddress(kmdfDataPointer);
 	if (!kmdfPageDirectory) {
 		KdPrint(("KMDF PDE is null\n"));
@@ -329,35 +230,32 @@ NTSTATUS Remap(PVOID clientDataPointer, PPDE clientPageDirectory, PPTE clientPag
 	}
 	KdPrint(("Got KMDF PDE\n"));
 	if (kmdfPageDirectory->LargePage) {
+		KdPrint(("LARGE page\n"));
+
+		PPDE clientPageDirectory = GetPdeAddress(clientDataPointer);
+		PPTE clientPageTable     = GetPteAddress(clientDataPointer);
+		PPDE kmdfPageDirectory   = GetPdeAddress(kmdfDataPointer);
+		PHYSICAL_ADDRESS kmdfPA = MmGetPhysicalAddress(kmdfDataPointer);
+		ULONG offset = (ULONG)clientDataPointer & 0x0fff;
+		ULONG kmdfXX = kmdfPA.LowPart;
+		ULONG target = kmdfXX - offset;
+		ULONG targetPFN = kmdfPA.LowPart >> 12;
+
+		KdPrint(("FUBAR [0x%llx][0x%lx][0x%lx] target PFN [0x%lx]   \n", 
+			kmdfPA.QuadPart, offset, kmdfXX, targetPFN));
+
+		ULONG targetPFNvalue = targetPFN << 12;
+
+		// Create a bit mask so we can set the page table index all at once
+		ULONG clientPfnValue = clientPageTable->rawValue & ~(0xfff);
+		ULONG clientToKmdfMask = (targetPFNvalue ^ clientPfnValue);
+
+		KdPrint(("fobar Target [0x%lx] Client [0x%lx]  \n",
+			targetPFNvalue, clientPfnValue));
 
 		KdPrint(("Pre Alter\n"));
-		printPdeHeader();
-		printPpde(kmdfPageDirectory);
-		printPpde(clientPageDirectory);
 		printPteHeader();
 		printPpte(clientPageTable);
-		pauseForABit(60);
-		ULONG kmdfPfnValue = kmdfPageDirectory->rawValue & ~(0xfff);
-		//ULONG clientPfnValue = clientPageDirectory->rawValue & ~(0xfff);
-		ULONG clientPfnValue = clientPageTable->rawValue & ~(0xfff);
-
-
-		kmdfBaseAddress = kmdfPfnValue << 12;
-		kmdfPhysicalAddress = kmdfBaseAddress + kmdfOffset;
-
-		ULONG newClientBaseAddress = kmdfPhysicalAddress - clientOffset;
-
-
-		//ULONG clientToKmdfMask = (kmdfPfnValue ^ clientPfnValue);
-		ULONG clientToKmdfMask = (kmdfPfnValue ^ clientPfnValue);
-
-
-
-
-
-		//(*((PULONG)clientPageTable)) |= 0x80; // set Large Page
-		// remap the PDE right here!
-		//(*((PULONG)clientPageDirectory)) ^= clientToKmdfMask;
 
 
 		(*((PULONG)clientPageTable)) |= 0x1; // set present
@@ -365,37 +263,32 @@ NTSTATUS Remap(PVOID clientDataPointer, PPDE clientPageDirectory, PPTE clientPag
 		(*((PULONG)clientPageTable)) |= 0x40; // set dirty
 		(*((PULONG)clientPageTable)) &= ~(0x100); // Clear global
 		(*((PULONG)clientPageTable)) |= 0x200; // set copy on write
-		//(*((PULONG)clientPageTable)) &= ~(0x40);  // clear dirty
-		// This line right here gived a BSOD with the error MEMORY_MANAGEMENT
 		(*((PULONG)clientPageTable)) ^= clientToKmdfMask;
 
-
-
-
 		KdPrint(("Post Alter\n"));
-		printPdeHeader();
-		printPpde(kmdfPageDirectory);
-		printPpde(clientPageDirectory);
 		printPteHeader();
 		printPpte(clientPageTable);
-		pauseForABit(60);
 
-		pfnForUsbAddress = PfnDatabase + (kmdfPageDirectory->PageFrameNumber * pfnSize);
+		pfnForUsbAddress = PfnDatabase + (targetPFN * pfnSize);
 		KdPrint(("PFNDatabase=0x%llx\n", PfnDatabase));
 		KdPrint(("pfnSize=0x%llx\n", pfnSize));
-		KdPrint(("kmdfPfnValue=0x%lx\n", kmdfPageDirectory->PageFrameNumber));
+		KdPrint(("clientPfnValue=0x%lx\n", clientPageTable->PageFrameNumber));
 		KdPrint(("PFN [0x%llx]\n", pfnForUsbAddress));
-		// TODO: do we need to decrement the PFN for the address the client originally had????
+		KdPrint(("Flush TLB\n"));
+		__asm __volatile
+		{
+			cli
+			invlpg  clientPageTable; // flush the TLB
+			sti
+		}
+		(*((PULONG)clientPageTable)) |= 0x100; // set global
 	}
 	else {
-		PPTE  kmdfPageTable;
-
-		kmdfPageTable = GetPteAddress(kmdfDataPointer);
-		if (!kmdfPageTable) {
-			KdPrint(("KMDF PTE is null\n"));
-			return STATUS_CRC_ERROR;
-		}
-		KdPrint(("Got KMDF PTE\n"));
+		// TODO: implement the new way of doing things for small pages too
+		PPDE clientPageDirectory = GetPdeAddress(clientDataPointer);
+		PPDE kmdfPageDirectory = GetPdeAddress(kmdfDataPointer);
+		PPTE clientPageTable = GetPteAddress(clientDataPointer);
+		PPTE kmdfPageTable = GetPteAddress(kmdfDataPointer);
 
 		KdPrint(("Pre Alter\n"));
 		printPteHeader();
@@ -432,33 +325,38 @@ NTSTATUS Remap(PVOID clientDataPointer, PPDE clientPageDirectory, PPTE clientPag
 		KdPrint(("pfnSize=0x%llx\n", pfnSize));
 		KdPrint(("kmdfPfnValue=0x%lx\n", kmdfPageTable->PageFrameNumber));
 		KdPrint(("PFN [0x%llx]\n", pfnForUsbAddress));
+		KdPrint(("Flush TLB\n"));
+		__asm __volatile
+		{
+			cli
+			invlpg  clientPageTable; // flush the TLB
+			sti
+		}
+		(*((PULONG)clientPageTable)) |= 0x100; // set global
 	}
 
-	KdPrint(("Flush TLB\n"));
-	__asm __volatile
-	{
-		cli
-		invlpg  clientPageTable; // flush the TLB
-		sti
-	}
-	(*((PULONG)clientPageTable)) |= 0x100; // set global
-
-
+	KdPrint(("About to look at PFN [0x%x]\n", pfnForUsbAddress));
+	pauseForABit(10);
 	PPFN pfnForUsb = (PPFN)pfnForUsbAddress;
 	if (MmIsAddressValid(pfnForUsb)) {
+		KdPrint(("PFN is valid, so let's increment it\n"));
+		pauseForABit(10);
 		KdPrint(("flink [0x%lx] blink [0x%lx] pteaddress [0x%lx] flags [0x%x]\n"
 			, pfnForUsb->flink, pfnForUsb->blink, pfnForUsb->pteaddress, pfnForUsb->flags
 			));
 		KdPrint(("page_state [0x%x] reference_count [0x%x] restore_pte [0x%lx] containing_page [0x%x]\n"
 			, pfnForUsb->page_state, pfnForUsb->reference_count, pfnForUsb->restore_pte, pfnForUsb->containing_page));
+		pauseForABit(10);
 		pfnForUsb->reference_count++;
 		KdPrint(("page_state [0x%x] reference_count [0x%x] restore_pte [0x%lx] containing_page [0x%x]\n"
 			, pfnForUsb->page_state, pfnForUsb->reference_count, pfnForUsb->restore_pte, pfnForUsb->containing_page));
+		pauseForABit(10);
 	}
 	else {
-		KdPrint(("PFN was invalid\n"));
+		KdPrint(("PFN [0x%x] was invalid\n", pfnForUsbAddress));
 	}
 	KdPrint(("finished with remap function\n"));
+	pauseForABit(5);
 
 	return status;
 }

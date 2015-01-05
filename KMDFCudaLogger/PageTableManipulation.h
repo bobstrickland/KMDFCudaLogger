@@ -98,13 +98,18 @@ ULONG getPageDirectoryBase();
 ULONG getPageTableBase();
 ULONG64 getPfnDatabaseBase();
 ULONG64 getPfnSize();
+BOOLEAN IsLargePage(PVOID virtualAddress);
+ULONG GetOffset(PVOID virtualAddress);
 ULONG GetPageTableIndex(PVOID virtualaddr);
 ULONG GetPageDirectoryIndex(PVOID virtualaddr);
+ULONG GetPageDirectoryPointerIndex(PVOID virtualaddr);
 PPDE GetPdeAddress(PVOID VirtualAddress);
-PPTE GetPteAddress(PVOID VirtualAddress); // , PPDE pageDirectoryTable);
+PPTE GetPteAddress(PVOID VirtualAddress);
 ULONG GetPhysAddress(PVOID virtualaddr);
-NTSTATUS Remap(PVOID clientDataPointer, PPDE clientPpde, PPTE clientPageTable, PVOID kmdfDataPointer);
+NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer);
 
-ULONG GetPhysAddressPhysically(PVOID virtualaddr);
-
+VOID printPteHeader();
+VOID printPdeHeader();
+VOID printPpte(PPTE ppte);
+VOID printPpde(PPDE ppde);
 #endif

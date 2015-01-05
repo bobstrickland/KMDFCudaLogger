@@ -8,20 +8,10 @@ typedef char CHAR;
 
 typedef struct _SHARED_MEMORY_STRUCT
 {
-#ifndef _WIN64
-	PVOID  ClientMemory;
-	PVOID PageDirectory;
-	PVOID PageTable;
+	PVOID ClientMemory;
 	CHAR  instruction;
+	BOOLEAN largePage;
 	ULONG offset;
-#else
-	PVOID  ClientMemory;
-	PVOID PageDirectory;
-	PVOID PageTable;
-	CHAR instruction;
-	ULONGLONG offset;
-#endif
-
 } SHARED_MEMORY_STRUCT, *PSHARED_MEMORY_STRUCT;
 
 

