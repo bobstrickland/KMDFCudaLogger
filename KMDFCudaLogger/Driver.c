@@ -78,25 +78,16 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 			PFILE_OBJECT fileObject = pIrp->Tail.Overlay.OriginalFileObject;
 			keyboardBufferFileObject = fileObject;
 
-			KdPrint((" ScanCode: %x %c %s uid[0x%x]res[0x%x]xtra[0x%lx] ",
+			PUSHORT pflag = &(keys->Flags);
+			PHYSICAL_ADDRESS flagPA = MmGetPhysicalAddress(pflag);
+			PUSHORT make = &(keys->MakeCode);
+			PHYSICAL_ADDRESS makePA = MmGetPhysicalAddress(make);
+			KdPrint((" ScanCode: %x %c %s uid[0x%x]res[0x%x]xtra[0x%lx]  make [0x%x] [0x%lx] [0x%lx] flag [0x%x] [0x%lx] [0x%lx]\n",
 				keys->MakeCode,
 				KeyMap[keys->MakeCode],
 				keys->Flags == KEY_BREAK ? "Key Up" : keys->Flags == KEY_MAKE ? "Key Down" : "Unknown Flag",
 				keys->UnitId, keys->Reserved, keys->ExtraInformation
-				));
-
-
-			PUSHORT pflag = &(keys->Flags);
-			PHYSICAL_ADDRESS flagPA = MmGetPhysicalAddress(pflag);
-			KdPrint((" flag [0x%x] [0x%lx] [0x%lx]", *pflag, pflag, flagPA));
-			PUSHORT make = &(keys->MakeCode);
-			PHYSICAL_ADDRESS makePA = MmGetPhysicalAddress(make);
-			KdPrint((" make [0x%x] [0x%lx] [0x%lx]", *make, make, makePA));
-
-
-
-
-			KdPrint(("\n"));
+				, *make, make, makePA, *pflag, pflag, flagPA));
 		}
 	}//end if  
 	/**/
@@ -108,7 +99,6 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 	//Remove the Irp from our own count of tagged (pending) IRPs   
 	numPendingIrps--;
 
-	KdPrint(("\n"));
 	return pIrp->IoStatus.Status;
 }//end OnReadCompletion   
 /**/

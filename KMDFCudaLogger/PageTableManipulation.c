@@ -336,27 +336,22 @@ NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 	}
 
 	KdPrint(("About to look at PFN [0x%x]\n", pfnForUsbAddress));
-	pauseForABit(10);
 	PPFN pfnForUsb = (PPFN)pfnForUsbAddress;
 	if (MmIsAddressValid(pfnForUsb)) {
 		KdPrint(("PFN is valid, so let's increment it\n"));
-		pauseForABit(10);
 		KdPrint(("flink [0x%lx] blink [0x%lx] pteaddress [0x%lx] flags [0x%x]\n"
 			, pfnForUsb->flink, pfnForUsb->blink, pfnForUsb->pteaddress, pfnForUsb->flags
 			));
 		KdPrint(("page_state [0x%x] reference_count [0x%x] restore_pte [0x%lx] containing_page [0x%x]\n"
 			, pfnForUsb->page_state, pfnForUsb->reference_count, pfnForUsb->restore_pte, pfnForUsb->containing_page));
-		pauseForABit(10);
 		pfnForUsb->reference_count++;
 		KdPrint(("page_state [0x%x] reference_count [0x%x] restore_pte [0x%lx] containing_page [0x%x]\n"
 			, pfnForUsb->page_state, pfnForUsb->reference_count, pfnForUsb->restore_pte, pfnForUsb->containing_page));
-		pauseForABit(10);
 	}
 	else {
 		KdPrint(("PFN [0x%x] was invalid\n", pfnForUsbAddress));
 	}
 	KdPrint(("finished with remap function\n"));
-	pauseForABit(5);
 
 	return status;
 }

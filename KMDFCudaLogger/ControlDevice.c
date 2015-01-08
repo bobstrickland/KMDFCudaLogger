@@ -163,8 +163,8 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 		else {
 			CHAR instruction = userSharedMemory->instruction;
 			if (instruction) {
-				KdPrint(("ReadKeyboardBuffer Client instruction is [%c]\n", instruction));
 				if (instruction == 'O') {
+					KdPrint(("ReadKeyboardBuffer Client instruction is Get [O]ffset\n"));
 					ULONG kmdfOffset = GetOffset(keyboardBuffer);
 					KdPrint(("Sending keyboardBuffer address [0x%lx] offset [0x%lx] to user\n", (ULONG)keyboardBuffer, kmdfOffset));
 					userSharedMemory->offset = kmdfOffset;
@@ -172,6 +172,7 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 					status = STATUS_SUCCESS;
 				}
 				else if (instruction == 'Q') {
+					KdPrint(("ReadKeyboardBuffer Client instruction is [Q]uery Memory Physical Address\n"));
 					PVOID clientMemory = userSharedMemory->ClientMemory;
 					PPDE cmDirectory = GetPdeAddress(clientMemory);
 					PPTE cmPageTable = GetPteAddress(clientMemory);
@@ -189,17 +190,14 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 					return;
 				}
 				else if (instruction == 'E') {
+					KdPrint(("ReadKeyboardBuffer Client instruction is [E]xtract keyboard buffer\n"));
 					PVOID clientMemory = userSharedMemory->ClientMemory;
-					PPDE cmDirectory = GetPdeAddress(clientMemory);
-					PPTE cmPageTable = GetPteAddress(clientMemory);
-					KdPrint(("ReadKeyboardBuffer ClientMemory is  [0x%lx] Page Directory is [0x%lx] Page Table is [0x%lx]\n", clientMemory, cmDirectory, cmPageTable));
-					printPdeHeader();
-					printPpde(cmDirectory);
-					PHYSICAL_ADDRESS pa = MmGetPhysicalAddress(clientMemory);
-					KdPrint(("ReadKeyboardBuffer ClientMemory [0x%lx] Physical Address is [0x%llx] \n", clientMemory, pa.QuadPart));
 					status = Remap(keyboardBuffer, clientMemory);
 					WdfRequestComplete(Request, status);
 					return;
+				}
+				else {
+					KdPrint(("ReadKeyboardBuffer Unknown Client instruction is [%c]\n", instruction));
 				}
 			}
 			else {
