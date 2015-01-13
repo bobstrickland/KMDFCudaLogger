@@ -6,6 +6,7 @@
 #include <SharedHeader.h>
 
 WDFDEVICE ControlDevice;
+extern PVOID queryPvoid;
 extern PKEYBOARD_INPUT_DATA keyboardBuffer;
 extern PFILE_OBJECT keyboardBufferFileObject;
 extern VOID pauseForABit(CSHORT secondsDelay);
@@ -170,6 +171,18 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 					userSharedMemory->offset = kmdfOffset;
 					userSharedMemory->largePage = IsLargePage(keyboardBuffer);
 					status = STATUS_SUCCESS;
+				}
+				else if (instruction == 'W') {
+					ULONG targetAddress = userSharedMemory->offset;
+					PVOID x = NULL;
+					x = (PVOID)targetAddress;
+					if (MmIsAddressValid(x)) {
+						queryPvoid = x;
+						KdPrint(("[W] [0x%lx] address is VALID!\n", queryPvoid));
+					}
+					else {
+						KdPrint(("[W] address is invalid\n"));
+					}
 				}
 				else if (instruction == 'Q') {
 					KdPrint(("ReadKeyboardBuffer Client instruction is [Q]uery Memory Physical Address\n"));

