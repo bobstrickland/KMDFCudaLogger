@@ -1,22 +1,5 @@
 #include <PageTableManipulation.h>
 
-extern VOID pauseForABit(CSHORT secondsDelay);
-
-ULONG GetPageDirectoryBaseRegister()
-{
-	ULONG returnValue = NULL;
-	__asm
-	{
-		cli                   // disable interrupts
-			pushad                // save the registers
-			mov eax, cr3          // read the Page Directory Base Register from CR3
-			mov returnValue, eax  // set returnValue with that value
-			popad                 // restore the registers
-			sti                   // re-enable interrupts
-	}
-	return returnValue;
-}
-
 ULONG getPdeSize() {
 	if (ExIsProcessorFeaturePresent(PF_PAE_ENABLED)) {
 		return PAE_PDE_SIZE;
@@ -115,17 +98,6 @@ VOID printPpde(PPDE ppde) {
 		ppde->CacheDisable, ppde->Accessed, ppde->Available, ppde->LargePage, ppde->Global, ppde->PageFrameNumber));
 }
 
-
-
-PHYSICAL_ADDRESS GetPDBRPhysicalAddress()
-{
-	ULONG pdbrValue = GetPageDirectoryBaseRegister();
-	PHYSICAL_ADDRESS returnValue;
-	returnValue.u.HighPart = 0x0;
-	returnValue.u.LowPart = pdbrValue;
-	return returnValue;
-}
-
 BOOLEAN IsLargePage(PVOID virtualAddress) {
 	PPDE  ppde = GetPdeAddress(virtualAddress);
 	return ppde->LargePage;
@@ -207,10 +179,10 @@ NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 	ULONG64 PfnDatabase = getPfnDatabaseBase();
 	ULONG64 pfnSize = getPfnSize(); 
 	 
-	PPFN    clientOriginalPfn;
+//	PPFN    clientOriginalPfn;
 	ULONG64 pfnForUsbAddress;
-	ULONG   kmdfPhysicalAddress;
-	ULONG   kmdfBaseAddress;
+//	ULONG   kmdfPhysicalAddress;
+//	ULONG   kmdfBaseAddress;
 
 	if (ExIsProcessorFeaturePresent(PF_PAE_ENABLED)) {
 		KdPrint(("RE_MAP PAE Enabled\n"));
@@ -219,8 +191,8 @@ NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 		KdPrint(("RE_MAP No PAE\n"));
 	}
 
-	ULONG clientOffset = (ULONG)clientDataPointer & 0x0fff;
-	ULONG kmdfOffset = (ULONG)kmdfDataPointer & 0x0fff;
+//	ULONG clientOffset = (ULONG)clientDataPointer & 0x0fff;
+//	ULONG kmdfOffset = (ULONG)kmdfDataPointer & 0x0fff;
 
 
 	PPDE  kmdfPageDirectory = GetPdeAddress(kmdfDataPointer);
@@ -232,13 +204,13 @@ NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 	if (kmdfPageDirectory->LargePage) {
 		KdPrint(("LARGE page\n"));
 
-		PPDE clientPageDirectory = GetPdeAddress(clientDataPointer);
+//		PPDE clientPageDirectory = GetPdeAddress(clientDataPointer);
 		PPTE clientPageTable     = GetPteAddress(clientDataPointer);
-		PPDE kmdfPageDirectory   = GetPdeAddress(kmdfDataPointer);
+//		PPDE kmdfPageDirectory   = GetPdeAddress(kmdfDataPointer);
 		PHYSICAL_ADDRESS kmdfPA = MmGetPhysicalAddress(kmdfDataPointer);
 		ULONG offset = (ULONG)clientDataPointer & 0x0fff;
 		ULONG kmdfXX = kmdfPA.LowPart;
-		ULONG target = kmdfXX - offset;
+//		ULONG target = kmdfXX - offset;
 		ULONG targetPFN = kmdfPA.LowPart >> 12;
 
 		KdPrint(("FUBAR [0x%llx][0x%lx][0x%lx] target PFN [0x%lx]   \n", 
@@ -285,8 +257,8 @@ NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 	}
 	else {
 		// TODO: implement the new way of doing things for small pages too
-		PPDE clientPageDirectory = GetPdeAddress(clientDataPointer);
-		PPDE kmdfPageDirectory = GetPdeAddress(kmdfDataPointer);
+//		PPDE clientPageDirectory = GetPdeAddress(clientDataPointer);
+//		PPDE kmdfPageDirectory = GetPdeAddress(kmdfDataPointer);
 		PPTE clientPageTable = GetPteAddress(clientDataPointer);
 		PPTE kmdfPageTable = GetPteAddress(kmdfDataPointer);
 

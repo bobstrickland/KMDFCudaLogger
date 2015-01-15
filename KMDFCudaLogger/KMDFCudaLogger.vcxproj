@@ -526,18 +526,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ControlDevice.c" />
-    <ClCompile Include="DiagnosticFunctions.c" />
     <ClCompile Include="Driver.c" />
     <ClCompile Include="PageTableManipulation.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ControlDevice.h" />
-    <ClInclude Include="UnpublishedDebugger.h" />
-    <ClInclude Include="DiagnosticFunctions.h" />
     <ClInclude Include="Driver.h" />
-    <ClInclude Include="mmHook.h" />
     <ClInclude Include="PageTableManipulation.h" />
-    <ClInclude Include="scancode.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SharedStructures\SharedStructures.vcxproj">

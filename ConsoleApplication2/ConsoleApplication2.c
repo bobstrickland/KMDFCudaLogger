@@ -5,93 +5,7 @@
 #include <windows.h>
 #include <SharedHeader.h>
 #include <ntsecapi.h>
-
-#define ASCII_0_VALU 48
-#define ASCII_9_VALU 57
-#define ASCII_A_VALU 65
-#define ASCII_F_VALU 70
-
-unsigned long HexStringToUInt(char * hexstring)
-{
-	unsigned long result = 0;
-	char const *c = hexstring;
-	char thisC;
-
-	while ((thisC = *c) != NULL)
-	{
-		unsigned int add;
-		thisC = toupper(thisC);
-
-		result <<= 4;
-
-		if (thisC >= ASCII_0_VALU &&  thisC <= ASCII_9_VALU)
-			add = thisC - ASCII_0_VALU;
-		else if (thisC >= ASCII_A_VALU && thisC <= ASCII_F_VALU)
-			add = thisC - ASCII_A_VALU + 10;
-		else
-		{
-			printf("Unrecognised hex character \"%c\"\n", thisC);
-			exit(-1);
-		}
-
-		result += add;
-		++c;
-	}
-
-	return result;
-}
-
-
-
-
-VOID pauseForABit(WORD secondsDelay) {
-
-	printf("Waiting for %d seconds...", secondsDelay);
-	SYSTEMTIME systemTime;
-	GetSystemTime(&systemTime);
-	WORD ExitMinute = systemTime.wMinute;
-	WORD ExitSecond = systemTime.wSecond + secondsDelay;
-	while (ExitSecond > 59) {
-		ExitSecond = ExitSecond - 60;
-		ExitMinute = ExitMinute + 1;
-	}
-	while (ExitMinute > 59) {
-		ExitMinute = ExitMinute - 60;
-	}
-	WORD CurrentMinute = systemTime.wMinute;
-	WORD CurrentSecond = systemTime.wSecond;
-
-
-	while (TRUE) {
-		GetSystemTime(&systemTime);
-		CurrentMinute = systemTime.wMinute;
-		CurrentSecond = systemTime.wSecond;
-		if (CurrentMinute == ExitMinute && CurrentSecond >= ExitSecond) {
-			break;
-		}
-	}
-	printf("done waiting\n");
-	return;
-}
-VOID WaitAMinute() {
-	printf("Waiting a minute...");
-	SYSTEMTIME systemTime;
-	GetSystemTime(&systemTime);
-	WORD CurrentMinute = systemTime.wMinute;
-	WORD ExitMinute;
-	if (systemTime.wSecond > 30) {
-		ExitMinute = systemTime.wMinute + 2;
-	}
-	else {
-		ExitMinute = systemTime.wMinute + 1;
-	}
-	//while (FALSE) {
-	while (CurrentMinute != ExitMinute) {
-		GetSystemTime(&systemTime);
-		CurrentMinute = systemTime.wMinute;
-	}
-	printf("done waiting\n");
-}
+#include <scancode.h>
 
 int main(int argc, _TCHAR* argv[]) {
 	#define IOCTL_CUSTOM_CODE CTL_CODE(FILE_DEVICE_UNKNOWN, 0, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
@@ -111,23 +25,6 @@ int main(int argc, _TCHAR* argv[]) {
 
 		keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
 		dataToTransmit = (PSHARED_MEMORY_STRUCT)malloc(SharedMemoryLength);
-		PCHAR sAddress = (PCHAR)malloc(sizeof(CHAR) * 20);
-		while (TRUE) {
-			printf("enter address:");
-			gets_s(sAddress, 20);
-			ULONG lAddress = HexStringToUInt(sAddress);
-			dataToTransmit->instruction = 'W';
-			dataToTransmit->offset = lAddress;
-			DeviceIoOverlapped.Offset = 0;
-			DeviceIoOverlapped.OffsetHigh = 0;
-			DeviceIoOverlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-			if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, &DeviceIoOverlapped)) {
-				printf("Ioctl to EvilFilter device failed\n");
-			}
-			else {
-				printf("success!\n");
-			}
-		}
 
 		dataToTransmit->instruction = 'O';
 		dataToTransmit->offset = 0;
@@ -200,9 +97,6 @@ int main(int argc, _TCHAR* argv[]) {
 			}
 		}
 		CloseHandle(hControlDevice);
-		pauseForABit(10);
-		printf("almost done\n");
-		pauseForABit(3000);
 	}
 	printf("fin\n");
 	return 0;

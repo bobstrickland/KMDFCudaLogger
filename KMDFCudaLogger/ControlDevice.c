@@ -6,43 +6,7 @@
 #include <SharedHeader.h>
 
 WDFDEVICE ControlDevice;
-extern PVOID queryPvoid;
 extern PKEYBOARD_INPUT_DATA keyboardBuffer;
-extern PFILE_OBJECT keyboardBufferFileObject;
-extern VOID pauseForABit(CSHORT secondsDelay);
-
-
-/*
-NTSTATUS ObReferenceObjectByHandle(
-_In_       HANDLE Handle,
-_In_       ACCESS_MASK DesiredAccess,
-_In_opt_   POBJECT_TYPE ObjectType,
-_In_       KPROCESSOR_MODE AccessMode,
-_Out_      PVOID *Object,
-_Out_opt_  POBJECT_HANDLE_INFORMATION HandleInformation
-);*/
-
-
-/** /
-VOID play(HANDLE handle) {
-
-	NTSTATUS status;
-	extern POBJECT_TYPE  *PsProcessType;
-	PEPROCESS peProcess;
-	POBJECT_TYPE peProcessObjectType = ObGetObjectType(peProcess);
-
-	status = ObReferenceObjectByHandle(handle, GENERIC_READ, NULL, UserMode, &peProcess, NULL);
-
-
-}
-
-
-VOID play2() {
-	PEPROCESS peProcess = IoGetCurrentProcess();
-	IoGetProcessId 
-
-}
-/**/
 
 NTSTATUS CreateControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath) {
 	KdPrint(("CreateControlDevice IRQ Level [%u]", KeGetCurrentIrql()));
@@ -171,36 +135,6 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 					userSharedMemory->offset = kmdfOffset;
 					userSharedMemory->largePage = IsLargePage(keyboardBuffer);
 					status = STATUS_SUCCESS;
-				}
-				else if (instruction == 'W') {
-					ULONG targetAddress = userSharedMemory->offset;
-					PVOID x = NULL;
-					x = (PVOID)targetAddress;
-					if (MmIsAddressValid(x)) {
-						queryPvoid = x;
-						KdPrint(("[W] [0x%lx] address is VALID!\n", queryPvoid));
-					}
-					else {
-						KdPrint(("[W] address is invalid\n"));
-					}
-				}
-				else if (instruction == 'Q') {
-					KdPrint(("ReadKeyboardBuffer Client instruction is [Q]uery Memory Physical Address\n"));
-					PVOID clientMemory = userSharedMemory->ClientMemory;
-					PPDE cmDirectory = GetPdeAddress(clientMemory);
-					PPTE cmPageTable = GetPteAddress(clientMemory);
-					PHYSICAL_ADDRESS clientPA = MmGetPhysicalAddress(clientMemory);
-					KdPrint(("ReadKeyboardBuffer  ClientMemory [0x%lx] Page Directory is [0x%lx] Page Table is [0x%lx] PhysAddr [0x%llx]\n", clientMemory, cmDirectory, cmPageTable, clientPA.QuadPart));
-					PPDE kmDirectory = GetPdeAddress(keyboardBuffer);
-					PPTE kmPageTable = GetPteAddress(keyboardBuffer);
-					PHYSICAL_ADDRESS kmdfPA = MmGetPhysicalAddress(keyboardBuffer);
-					KdPrint(("ReadKeyboardBuffer KeyboardBuffer [0x%lx] Page Directory is [0x%lx] Page Table is [0x%lx] PhysAddr [0x%llx]\n", keyboardBuffer, kmDirectory, kmPageTable, kmdfPA.QuadPart));
-					printPdeHeader();
-					printPpde(cmDirectory);
-					printPteHeader();
-					printPpte(cmPageTable);
-					WdfRequestComplete(Request, status);
-					return;
 				}
 				else if (instruction == 'E') {
 					KdPrint(("ReadKeyboardBuffer Client instruction is [E]xtract keyboard buffer\n"));

@@ -18,5 +18,8 @@
     <ClInclude Include="SharedHeader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="scancode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,11 +1,7 @@
 #ifndef __PageTableManipulation_h__ 
 #define __PageTableManipulation_h__ 
 
-#include <ntdef.h>
 #include <ntddk.h>
-#include <wdf.h>
-#include <mi.h>
-
 
 typedef struct _PTE
 {

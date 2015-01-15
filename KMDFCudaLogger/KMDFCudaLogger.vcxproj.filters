@@ -19,15 +19,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="scancode.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="mmHook.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="DiagnosticFunctions.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Driver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -37,15 +28,9 @@
     <ClInclude Include="PageTableManipulation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="UnpublishedDebugger.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Driver.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="DiagnosticFunctions.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ControlDevice.c">

