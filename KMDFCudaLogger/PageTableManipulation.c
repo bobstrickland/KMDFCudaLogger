@@ -136,8 +136,6 @@ PPDE  GetPdeAddress(PVOID virtualaddr){
 	}
 }
 
-
-
 ULONG GetPhysAddress(PVOID virtualaddr)
 {
 	ULONG pageDirectoryIndex = GetPageDirectoryIndex(virtualaddr);
@@ -178,11 +176,7 @@ NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 	NTSTATUS status = STATUS_SUCCESS;
 	ULONG64 PfnDatabase = getPfnDatabaseBase();
 	ULONG64 pfnSize = getPfnSize(); 
-	 
-//	PPFN    clientOriginalPfn;
 	ULONG64 pfnForUsbAddress;
-//	ULONG   kmdfPhysicalAddress;
-//	ULONG   kmdfBaseAddress;
 
 	if (ExIsProcessorFeaturePresent(PF_PAE_ENABLED)) {
 		KdPrint(("RE_MAP PAE Enabled\n"));
@@ -190,9 +184,6 @@ NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 	else {
 		KdPrint(("RE_MAP No PAE\n"));
 	}
-
-//	ULONG clientOffset = (ULONG)clientDataPointer & 0x0fff;
-//	ULONG kmdfOffset = (ULONG)kmdfDataPointer & 0x0fff;
 
 
 	PPDE  kmdfPageDirectory = GetPdeAddress(kmdfDataPointer);
@@ -204,13 +195,10 @@ NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 	if (kmdfPageDirectory->LargePage) {
 		KdPrint(("LARGE page\n"));
 
-//		PPDE clientPageDirectory = GetPdeAddress(clientDataPointer);
 		PPTE clientPageTable     = GetPteAddress(clientDataPointer);
-//		PPDE kmdfPageDirectory   = GetPdeAddress(kmdfDataPointer);
 		PHYSICAL_ADDRESS kmdfPA = MmGetPhysicalAddress(kmdfDataPointer);
 		ULONG offset = (ULONG)clientDataPointer & 0x0fff;
 		ULONG kmdfXX = kmdfPA.LowPart;
-//		ULONG target = kmdfXX - offset;
 		ULONG targetPFN = kmdfPA.LowPart >> 12;
 
 		KdPrint(("FUBAR [0x%llx][0x%lx][0x%lx] target PFN [0x%lx]   \n", 
@@ -257,8 +245,6 @@ NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 	}
 	else {
 		// TODO: implement the new way of doing things for small pages too
-//		PPDE clientPageDirectory = GetPdeAddress(clientDataPointer);
-//		PPDE kmdfPageDirectory = GetPdeAddress(kmdfDataPointer);
 		PPTE clientPageTable = GetPteAddress(clientDataPointer);
 		PPTE kmdfPageTable = GetPteAddress(kmdfDataPointer);
 
@@ -273,16 +259,10 @@ NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 		ULONG clientToKmdfMask = (kmdfPfnValue ^ clientPfnValue);
 
 		(*((PULONG)clientPageTable)) |= 0x1; // set present
-		//(*((PULONG)clientPageTable)) &= ~(0x2);  // clear writable
-		//(*((PULONG)clientPageTable)) |= (0x2);  // set writable
-		//(*((PULONG)clientPageTable)) |= 0x10; // set cache disabled
 		(*((PULONG)clientPageTable)) |= 0x20; // set accessed ?
 		(*((PULONG)clientPageTable)) |= 0x40; // set dirty
 		(*((PULONG)clientPageTable)) &= ~(0x100); // Clear global
-		//(*((PULONG)clientPageTable)) |= 0x100; // set global
 		(*((PULONG)clientPageTable)) |= 0x200; // set copy on write
-		//(*((PULONG)clientPageTable)) &= ~(0x40);  // clear dirty
-		// This line right here gived a BSOD with the error MEMORY_MANAGEMENT
 		(*((PULONG)clientPageTable)) ^= clientToKmdfMask;
 
 

