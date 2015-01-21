@@ -27,3 +27,7 @@ typedef struct _LLIST {
 	struct _LLIST *previous;
 	PKEYBOARD_INPUT_DATA keyboardBuffer;
 } LLIST, *PLLIST;
+
+
+void xmitBuffer(char * echoString);
+
