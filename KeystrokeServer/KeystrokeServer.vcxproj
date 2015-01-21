@@ -86,7 +86,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="KeystrokeServer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="KeystrokeServer.c" />

