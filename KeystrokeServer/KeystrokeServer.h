@@ -4,6 +4,6 @@
 #include <winsock.h>
 #include <stdlib.h> 
 
-#define RCVBUFSIZE 1024 
+#define RCVBUFSIZE 128 
 #define MAXPENDING 5 
 

