@@ -18,6 +18,8 @@
 
 #define KEY_MAKE  0
 #define KEY_BREAK 1
+#define SP_KEY_MAKE  2
+#define SP_KEY_BREAK 3
 
 char KeyMap[84] = {
 	INVALID, //0   

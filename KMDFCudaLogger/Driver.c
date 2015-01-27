@@ -40,7 +40,7 @@ NTSTATUS GetKeyboardMemoryBuffer(IN PDRIVER_OBJECT pDriverObject)
 
 
 			KdPrint(("about to try to hook keyboard\n"));
-			pauseForABit(10);
+			//pauseForABit(10);
 			HookKeyboard(pDriverObject, usbBaseKeyboardDeviceObject); // hk
 
 		}
@@ -54,8 +54,8 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING Reg
 	NTSTATUS status;
 	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "KMDFCudaLogger: DriverEntry\n"));
 
-	KdPrint(("about to try to hook IRPs\n"));
-	pauseForABit(10);
+//	KdPrint(("about to try to hook IRPs\n"));
+//	pauseForABit(10);
 	HookIrps(DriverObject); // hk
 
 	KdPrint(("Getting Keyboar dMemory Buffer\n"));
@@ -68,8 +68,8 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING Reg
 	KdPrint(("Creating Control Device\n"));
 	status = CreateControlDevice( DriverObject,  RegistryPath);
 
-	KdPrint(("about to set major function\n"));
-	pauseForABit(10);
+//	KdPrint(("about to set major function\n"));
+//	pauseForABit(10);
 	SetMajorFunction(DriverObject); // hk
 
 	KdPrint(("Exiting Driver Entry\n"));

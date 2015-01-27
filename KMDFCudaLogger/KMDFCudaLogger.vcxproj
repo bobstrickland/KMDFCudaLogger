@@ -527,11 +527,13 @@
   <ItemGroup>
     <ClCompile Include="ControlDevice.c" />
     <ClCompile Include="Driver.c" />
+    <ClCompile Include="KeyboardHooker.c" />
     <ClCompile Include="PageTableManipulation.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ControlDevice.h" />
     <ClInclude Include="Driver.h" />
+    <ClInclude Include="KeyboardHooker.h" />
     <ClInclude Include="PageTableManipulation.h" />
   </ItemGroup>
   <ItemGroup>

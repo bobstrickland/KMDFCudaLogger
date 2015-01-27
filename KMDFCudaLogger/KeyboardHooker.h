@@ -72,6 +72,8 @@ typedef struct _HID_KBD {
 
 
 
+
+
 VOID pauseForABit(CSHORT secondsDelay);
 
 _IRQL_requires_max_(PASSIVE_LEVEL)

