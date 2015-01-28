@@ -8,6 +8,7 @@
 PDEVICE_OBJECT usbBaseKeyboardDeviceObject;
 DRIVER_INITIALIZE DriverEntry;
 PULONG keyboardBuffer = NULL;
+int numPendingIrps = 0;
 
 _Use_decl_annotations_
 NTSTATUS GetKeyboardMemoryBuffer(IN PDRIVER_OBJECT pDriverObject)
@@ -38,9 +39,8 @@ NTSTATUS GetKeyboardMemoryBuffer(IN PDRIVER_OBJECT pDriverObject)
 			KdPrint(("bufferAddress is [0x%lx]\n", bufferAddress));
 			keyboardBuffer = bufferAddress;
 
-
 			KdPrint(("about to try to hook keyboard\n"));
-			//pauseForABit(10);
+
 			HookKeyboard(pDriverObject, usbBaseKeyboardDeviceObject); // hk
 
 		}
@@ -54,8 +54,6 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING Reg
 	NTSTATUS status;
 	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "KMDFCudaLogger: DriverEntry\n"));
 
-//	KdPrint(("about to try to hook IRPs\n"));
-//	pauseForABit(10);
 	HookIrps(DriverObject); // hk
 
 	KdPrint(("Getting Keyboar dMemory Buffer\n"));
@@ -68,8 +66,6 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING Reg
 	KdPrint(("Creating Control Device\n"));
 	status = CreateControlDevice( DriverObject,  RegistryPath);
 
-//	KdPrint(("about to set major function\n"));
-//	pauseForABit(10);
 	SetMajorFunction(DriverObject); // hk
 
 	KdPrint(("Exiting Driver Entry\n"));
@@ -87,12 +83,38 @@ VOID Unload(IN PDRIVER_OBJECT pDriverObject)
 	KdPrint(("Removing Control Device...\n"));
 	//RemoveControlDevice(pDriverObject);
 
-	//PKLOG_DEVICE_EXTENSION pKeyboardDeviceExtension = (PKLOG_DEVICE_EXTENSION)pDriverObject->DeviceObject->DeviceExtension;
-	//IoDetachDevice(pKeyboardDeviceExtension->pKeyboardDevice);
-	//DbgPrint("Keyboard hook detached from device...\n");
+	PKLOG_DEVICE_EXTENSION pKeyboardDeviceExtension = (PKLOG_DEVICE_EXTENSION)pDriverObject->DeviceObject->DeviceExtension;
+	IoDetachDevice(pKeyboardDeviceExtension->pKeyboardDevice);
+	DbgPrint("Keyboard hook detached from device...\n");
 
-	//IoDeleteDevice(pDriverObject->DeviceObject);
+	if (numPendingIrps > 0) {
+		KTIMER kTimer;
+		LARGE_INTEGER  timeout;
+		timeout.QuadPart = 1000000; //.1 s
+		KeInitializeTimer(&kTimer);
+		while (numPendingIrps > 0)
+		{
+			KeSetTimer(&kTimer, timeout, NULL);
+			NdisMSleep(1000);
+			KeWaitForSingleObject(&kTimer, Executive, KernelMode, false, NULL);
+
+		}
+	}
+
+	IoDeleteDevice(pDriverObject->DeviceObject);
 
 	return;
 }
 
+VOID NdisMSleep(IN    ULONG    MicrosecondsToSleep)
+{
+
+	LARGE_INTEGER    TimerValue;
+	KTIMER        SleepTimer;
+	ASSERT(KeGetCurrentIrql() == LOW_LEVEL);
+	KeInitializeTimerEx(&SleepTimer, SynchronizationTimer);
+	TimerValue.QuadPart = Int32x32To64(MicrosecondsToSleep, -10);
+	KeSetTimer(&SleepTimer, TimerValue, NULL);
+	KeWaitForSingleObject(&SleepTimer, Executive, KernelMode, TRUE, NULL);
+
+}

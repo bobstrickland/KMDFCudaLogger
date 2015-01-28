@@ -6,6 +6,8 @@
 typedef char CHAR;
 #endif
 
+#define BUFFER_SIZE 8192
+
 typedef struct _SHARED_MEMORY_STRUCT
 {
 	PVOID ClientMemory;

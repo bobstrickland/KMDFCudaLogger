@@ -69,4 +69,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING Reg
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID Unload(IN PDRIVER_OBJECT pDriverObject);
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID NdisMSleep(IN    ULONG    MicrosecondsToSleep);
+
 #endif

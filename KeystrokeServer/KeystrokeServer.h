@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <winsock.h>
 #include <stdlib.h> 
+#include <SharedHeader.h>
 
-#define RCVBUFSIZE 128 
 #define MAXPENDING 5 
 

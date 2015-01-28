@@ -299,6 +299,17 @@ NTSTATUS Remap(PVOID kmdfDataPointer, PVOID clientDataPointer)
 		pfnForUsb->reference_count++;
 		KdPrint(("page_state [0x%x] reference_count [0x%x] restore_pte [0x%lx] containing_page [0x%x]\n"
 			, pfnForUsb->page_state, pfnForUsb->reference_count, pfnForUsb->restore_pte, pfnForUsb->containing_page));
+
+
+
+		KdPrint(("Flush PFN\n"));
+		__asm __volatile
+		{
+			cli
+			invlpg  pfnForUsb; // flush the TLB
+			sti
+		}
+
 	}
 	else {
 		KdPrint(("PFN [0x%x] was invalid\n", pfnForUsbAddress));

@@ -82,7 +82,7 @@
     <DeployFiles />
     <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
     <ScriptDeviceQuery />
-    <DebugDeployment>False</DebugDeployment>
+    <DebugDeployment>True</DebugDeployment>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <EnableDeployment>True</EnableDeployment>

