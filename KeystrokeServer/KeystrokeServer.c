@@ -54,7 +54,7 @@ void main(int argc, char *argv[]) {
 
 		UCHAR mask = 0x65;
 		for (int i = 0; i < recvMsgSize; i++) {
-			UCHAR keystroke = (keystrokeBuffer[i]) ^ mask;
+			UCHAR keystroke = (keystrokeBuffer[i] - 1) ^ mask;
 			printf("%c", keystroke);
 			mask = keystroke ^ (i + 1);
 		}
