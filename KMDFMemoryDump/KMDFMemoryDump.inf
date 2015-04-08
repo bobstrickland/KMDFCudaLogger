@@ -1,0 +1,91 @@
+;
+; KMDFMemoryDump.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=Sample ; TODO: edit Class
+ClassGuid={78A1C341-4539-11d3-B88D-00C04FAD5171} ; TODO: edit ClassGuid
+Provider=%ManufacturerName%
+CatalogFile=KMDFMemoryDump.cat
+DriverVer= ; TODO: set DriverVer in stampinf property pages
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+; ================= Class section =====================
+
+[ClassInstall32]
+Addreg=SampleClassReg
+
+[SampleClassReg]
+HKR,,,0,%ClassName%
+HKR,,Icon,,-5
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+KMDFMemoryDump.sys  = 1,,
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName%=Standard,NT$ARCH$
+
+[Standard.NT$ARCH$]
+%KMDFMemoryDump.DeviceDesc%=KMDFMemoryDump_Device, Root\KMDFMemoryDump ; TODO: edit hw-id
+
+[KMDFMemoryDump_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+KMDFMemoryDump.sys
+
+;-------------- Service installation
+[KMDFMemoryDump_Device.NT.Services]
+AddService = KMDFMemoryDump,%SPSVCINST_ASSOCSERVICE%, KMDFMemoryDump_Service_Inst
+
+; -------------- KMDFMemoryDump driver install sections
+[KMDFMemoryDump_Service_Inst]
+DisplayName    = %KMDFMemoryDump.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\KMDFMemoryDump.sys
+LoadOrderGroup = Extended Base
+
+;
+;--- KMDFMemoryDump_Device Coinstaller installation ------
+;
+
+[DestinationDirs]
+KMDFMemoryDump_Device_CoInstaller_CopyFiles = 11
+
+[KMDFMemoryDump_Device.NT.CoInstallers]
+AddReg=KMDFMemoryDump_Device_CoInstaller_AddReg
+CopyFiles=KMDFMemoryDump_Device_CoInstaller_CopyFiles
+
+[KMDFMemoryDump_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[KMDFMemoryDump_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[SourceDisksFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+[KMDFMemoryDump_Device.NT.Wdf]
+KmdfService =  KMDFMemoryDump, KMDFMemoryDump_wdfsect
+[KMDFMemoryDump_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+ManufacturerName="Bob" ; TODO: add ManufacturerName
+ClassName="CUDAmemory" ; TODO: edit ClassName
+DiskName = "KMDFMemoryDump Installation Disk"
+KMDFMemoryDump.DeviceDesc = "KMDFMemoryDump Device"
+KMDFMemoryDump.SVCDESC = "KMDFMemoryDump Service"
