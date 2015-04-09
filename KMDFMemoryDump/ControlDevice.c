@@ -229,12 +229,61 @@ VOID ReadDeviceMemory(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 	NTSTATUS  status;
 	WDFMEMORY memoryHandle;
 	ULONG     Length;
-	size_t    memoryLength;
+//	size_t    memoryLength;
 
 
 	//PHYSICAL_ADDRESS PRAMIN_CONTROL_ADDRESS = { 0x1700, 0x0 };
 	//PHYSICAL_ADDRESS PRAMIN_ADDRESS = { 0x700000, 0x0 }; //at the address 0x700000-0x7fffff
 	//ULONG            PRAMIN_LENGTH = 0x100000;
+
+
+
+
+
+
+
+
+
+	/** /
+
+	if (pciVideoDeviceObject) {
+		KdPrint(("pciVideoDeviceObject is [0x%lx]\n", pciVideoDeviceObject));
+		pauseForABit(10);
+
+//		PCI_COMMON_CONFIG commonConfig;
+		PCI_COMMON_HEADER PciHeader;
+		PPCI_COMMON_CONFIG PciConfig = (PPCI_COMMON_CONFIG)&PciHeader;
+		status = ReadConfigSpace(pciVideoDeviceObject, PciConfig, 0, sizeof(PCI_COMMON_HEADER));
+		if (NT_SUCCESS(status)) {
+			if (PciConfig) {
+				KdPrint(("ReadConfigSpace: Type %d\n", PciHeader.HeaderType));
+				pauseForABit(10);
+				Bar0Address = PciHeader.u.type0.BaseAddresses[0];
+				HostMemAddress = Bar0Address + 0x1700;
+				WindowAddress = Bar0Address + 0x700000;
+				KdPrint(("   Base Address 0   [0x%lx]\n", Bar0Address));
+				KdPrint(("   Host Mem Address [0x%lx]\n", HostMemAddress));
+				KdPrint(("   Window Address   [0x%lx]\n\n", WindowAddress));
+			}
+			else {
+				KdPrint(("ReadConfigSpace failed :-( \n"));
+			}
+		}
+		else {
+			KdPrint(("ReadConfigSpace failed ntstatus [0x%lx] \n", status));
+		}
+		pauseForABit(10);
+	}
+	/**/
+
+
+
+
+
+
+
+
+
 
 	
 
@@ -268,19 +317,26 @@ VOID ReadDeviceMemory(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 	else {
 
 		KdPrint(("ReadDeviceMemory Preparing for memory mapping\n"));
-
+		ULONG originalHostMemValue;
 
 
 		if (!HostMem) {
-			PHYSICAL_ADDRESS HostMemAddress;
-			HostMemAddress.HighPart = 0;
-			HostMemAddress.LowPart = 0xf6001700;
-			HostMem = (PULONG)MmMapIoSpace(HostMemAddress, sizeof(ULONG), MmNonCached);
+
+			PHYSICAL_ADDRESS HostMemPhysicalAddress;
+			HostMemPhysicalAddress.HighPart = 0;
+			HostMemPhysicalAddress.LowPart = HostMemAddress; // 0xf6001700;
+			HostMem = (PULONG)MmMapIoSpace(HostMemPhysicalAddress, sizeof(ULONG), MmNonCached);
 		}
 
 
+		KdPrint(("ReadDeviceMemory BufferOffset was %lu.\n", userSharedMemory->BufferOffset));
 		if (HostMem) {
-			KdPrint(("ReadDeviceMemory HostMem Mapped. Value is [0x%lx]\n", HostMem));
+			KdPrint(("ReadDeviceMemory HostMem Mapped. Address [0x%lx] Value was [0x%lx]\n", HostMem, *HostMem));
+			if (userSharedMemory->BufferOffset != 666) {
+				originalHostMemValue = *HostMem;
+				*HostMem = userSharedMemory->BufferOffset;
+				KdPrint(("ReadDeviceMemory HostMem Mapped. Address [0x%lx] Value is [0x%lx]\n", HostMem, *HostMem));
+			}
 		}
 		else {
 			KdPrint(("ReadDeviceMemory HostMem Map failed\n"));
@@ -288,15 +344,15 @@ VOID ReadDeviceMemory(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 		}
 
 		if (!Pramin) {
-			PHYSICAL_ADDRESS PraminAddress;
-			PraminAddress.HighPart = 0;
-			PraminAddress.LowPart = 0xf6700000;
-			Pramin = (PULONG)MmMapIoSpace(PraminAddress, 0x100000, MmNonCached);
+			PHYSICAL_ADDRESS PraminPhysicalAddress;
+			PraminPhysicalAddress.HighPart = 0;
+			PraminPhysicalAddress.LowPart = WindowAddress; // 0xf6700000;
+			Pramin = (PULONG)MmMapIoSpace(PraminPhysicalAddress, PRAMIN_LENGTH, MmNonCached);
 		}
 
 		if (Pramin) {
 			KdPrint(("ReadDeviceMemory Pramin Mapped\n"));
-			memcpy(userSharedMemory->ClientMemory, Pramin, 0x100000);
+			memcpy(userSharedMemory->ClientMemory, Pramin, PRAMIN_LENGTH);
 			KdPrint(("ReadDeviceMemory Pramin Coppied\n"));
 		}
 		else {
@@ -304,6 +360,10 @@ VOID ReadDeviceMemory(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 		}
 
 
+		if (userSharedMemory->BufferOffset != 666) {
+			*HostMem = originalHostMemValue;
+			KdPrint(("ReadDeviceMemory HostMem Mapped. Address [0x%lx] Value now [0x%lx]\n", HostMem, *HostMem));
+		}
 
 
 		/** /

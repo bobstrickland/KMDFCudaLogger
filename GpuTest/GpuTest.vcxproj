@@ -96,6 +96,7 @@
     <LinkIncremental>
     </LinkIncremental>
     <IncludePath>C:\ProgramData\NVIDIA Corporation\CUDA Samples\v7.0\common\inc;$(IncludePath)</IncludePath>
+    <OutDir>\\victim\shared\GpuTest\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Victim7 Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>

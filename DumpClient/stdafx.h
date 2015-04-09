@@ -19,7 +19,6 @@ typedef void *  PVOID;
 typedef struct _SHARED_MEMORY_STRUCT
 {
 	ULONG BufferOffset;
-	ULONG WindowOffset;
 	PCHAR ClientMemory;
 } SHARED_MEMORY_STRUCT, *PSHARED_MEMORY_STRUCT;
 

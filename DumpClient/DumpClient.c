@@ -49,34 +49,20 @@ int main(int argc, _TCHAR* argv[]) {
 
 	SharedMemory = (PSHARED_MEMORY_STRUCT)malloc(sizeof(PSHARED_MEMORY_STRUCT));
 
-	if (argc > 3 && strncmp(argv[1], "0x", 2) == 0) {
-		printf("Control Buffer Location Offset: 0x%s Memory Window Offset: 0x%s\n", argv[2], argv[3]);
+	if (argc > 2 && strncmp(argv[1], "0x", 1) == 0) {
 		SharedMemory->BufferOffset = HexStringToUInt(argv[2]);
-		SharedMemory->WindowOffset = HexStringToUInt(argv[3]);
-	}
-	else if (argc > 2) {
-		printf("C_ontrol Buffer Location Offset: %s Memory Window Offset: %s\n", argv[1], argv[2]);
-		SharedMemory->BufferOffset = atol(argv[1]);
-		SharedMemory->WindowOffset = atol(argv[2]);
 	}
 	else if (argc > 1) {
-		printf("Control Buffer Location Offset: 0x1700 Memory Window Offset: %s\n", argv[1]);
-		SharedMemory->BufferOffset = 0x1700;
-		SharedMemory->WindowOffset = atol(argv[1]);
+		SharedMemory->BufferOffset = atol(argv[1]);
 	}
 	else {
-
 		PCHAR offsetText;
-
 		offsetText = (PCHAR)malloc(sizeof(CHAR) * 64);
-		printf("Enter Window Offset: ");
+		printf("Enter Buffer Offset: ");
 		gets_s(offsetText, 64);
-		SharedMemory->WindowOffset = atol(offsetText);
-		//printf("Enter Buffer Offset: ");
-		//gets_s(offsetText, 64);
-		//SharedMemory->BufferOffset = atol(offsetText);
-		SharedMemory->BufferOffset = 0x1700;
+		SharedMemory->BufferOffset = atol(offsetText);
 	}
+	printf("Control Buffer Offset: %s\n", SharedMemory->BufferOffset);
 
 	hControlDevice = CreateFile(TEXT("\\\\.\\DeviceMemDump"), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
