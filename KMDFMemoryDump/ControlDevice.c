@@ -318,184 +318,54 @@ VOID ReadDeviceMemory(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 
 		KdPrint(("ReadDeviceMemory Preparing for memory mapping\n"));
 		ULONG originalHostMemValue;
-
-
 		if (!HostMem) {
-
 			PHYSICAL_ADDRESS HostMemPhysicalAddress;
 			HostMemPhysicalAddress.HighPart = 0;
-			HostMemPhysicalAddress.LowPart = HostMemAddress; // 0xf6001700;
+			HostMemPhysicalAddress.LowPart = HostMemAddress;
 			HostMem = (PULONG)MmMapIoSpace(HostMemPhysicalAddress, sizeof(ULONG), MmNonCached);
-		}
-
-
-		KdPrint(("ReadDeviceMemory BufferOffset was %lu.\n", userSharedMemory->BufferOffset));
-		if (HostMem) {
-			KdPrint(("ReadDeviceMemory HostMem Mapped. Address [0x%lx] Value was [0x%lx]\n", HostMem, *HostMem));
-			if (userSharedMemory->BufferOffset != 666) {
-				originalHostMemValue = *HostMem;
-				*HostMem = userSharedMemory->BufferOffset;
-				KdPrint(("ReadDeviceMemory HostMem Mapped. Address [0x%lx] Value is [0x%lx]\n", HostMem, *HostMem));
+			if (HostMem) {
+				KdPrint(("ReadDeviceMemory: HostMem mapped [0x%llx] to [0x%lx]\n", HostMemPhysicalAddress.QuadPart, HostMem));
+			}
+			else {
+				KdPrint(("ReadDeviceMemory: HostMem mapping failed\n"));
 			}
 		}
-		else {
-			KdPrint(("ReadDeviceMemory HostMem Map failed\n"));
-
-		}
-
 		if (!Pramin) {
 			PHYSICAL_ADDRESS PraminPhysicalAddress;
 			PraminPhysicalAddress.HighPart = 0;
-			PraminPhysicalAddress.LowPart = WindowAddress; // 0xf6700000;
+			PraminPhysicalAddress.LowPart = WindowAddress;
 			Pramin = (PULONG)MmMapIoSpace(PraminPhysicalAddress, PRAMIN_LENGTH, MmNonCached);
-		}
-
-		if (Pramin) {
-			KdPrint(("ReadDeviceMemory Pramin Mapped\n"));
-			memcpy(userSharedMemory->ClientMemory, Pramin, PRAMIN_LENGTH);
-			KdPrint(("ReadDeviceMemory Pramin Coppied\n"));
-		}
-		else {
-			KdPrint(("ReadDeviceMemory Pramin Map failed\n"));
-		}
-
-
-		if (userSharedMemory->BufferOffset != 666) {
-			*HostMem = originalHostMemValue;
-			KdPrint(("ReadDeviceMemory HostMem Mapped. Address [0x%lx] Value now [0x%lx]\n", HostMem, *HostMem));
-		}
-
-
-		/** /
-		PHYSICAL_ADDRESS baseAddress;
-		baseAddress.HighPart = 0;
-		baseAddress.LowPart = 0xf6000000;
-		ULONG nbytes =  0xffffff;
-		PUCHAR membase = (PUCHAR)MmMapIoSpace(baseAddress, nbytes, MmNonCached);
-		if (membase) {
-			KdPrint(("ReadDeviceMemory Memory Mapped\n"));
-			memcpy(userSharedMemory->ClientMemory, membase, nbytes);
-			KdPrint(("ReadDeviceMemory Memory Coppied\n"));
-		}
-		else {
-			KdPrint(("ReadDeviceMemory Memory Map failed\n"));
-		}
-		/**/
-
-
-
-
-		/** /
-		if (pciVideoDeviceObject) {
-			KdPrint(("pciVideoDeviceObject is [0x%lx]\n", pciVideoDeviceObject));
-			pauseForABit(10);
-			BUS_INTERFACE_STANDARD busInterface;
-			status = GetBusInterface(pciVideoDeviceObject, &busInterface);
-			if (!NT_SUCCESS(status)) {
-				KdPrint(("Failed to get Bus Interface [0x%lx]\n", status));
-			} // STATUS_NOT_SUPPORTED
+			if (Pramin) {
+				KdPrint(("ReadDeviceMemory: PRAMIN mapped [0x%llx] to [0x%lx]\n", PraminPhysicalAddress.QuadPart, Pramin));
+			}
 			else {
-				PCI_COMMON_HEADER Header;
-				PCI_COMMON_CONFIG *pPciConfig = (PCI_COMMON_CONFIG *)&Header;
-				//UCHAR CapabilityOffset;
-				busInterface.GetBusData(busInterface.Context, PCI_WHICHSPACE_CONFIG, pPciConfig, 0, sizeof(PCI_COMMON_HEADER)); // just 64 bytes
-				if (pPciConfig) {
-					KdPrint(("PCI_CONFIG::  BaseClass [0x%x]  BIST [0x%x]  CacheLineSize [0x%x]  Command [0x%x]  DeviceID [0x%x]  HeaderType [0x%x]  LatencyTimer [0x%x]  ProgIf [0x%x]  RevisionID [0x%x]  Status [0x%x]  SubClass [0x%x]  VendorID [0x%x] \n",
-						Header.BaseClass, Header.BIST, Header.CacheLineSize, Header.Command,
-						Header.DeviceID, Header.HeaderType, Header.LatencyTimer, Header.ProgIf,
-						Header.RevisionID, Header.Status, Header.SubClass, Header.VendorID
-						));
+				KdPrint(("ReadDeviceMemory: PRAMIN mapping failed\n"));
+			}
+		}
+
+		if (HostMem && Pramin) {
+			BOOLEAN ContinueMapping = TRUE;
+			KdPrint(("ReadDeviceMemory HostMem Mapped. Address [0x%lx] Value was [0x%lx]\n", HostMem, *HostMem));
+			originalHostMemValue = *HostMem;
+			*HostMem = userSharedMemory->BufferOffset;
+			KdPrint(("ReadDeviceMemory HostMem Mapped. Address [0x%lx] Value is [0x%lx]\n", HostMem, *HostMem));
+			while (ContinueMapping) {
+				memcpy(userSharedMemory->ClientMemory, Pramin, PRAMIN_LENGTH);
+				if (*HostMem == userSharedMemory->BufferOffset) {
+					*HostMem = originalHostMemValue;
+					ContinueMapping = FALSE;
 				}
 				else {
-					KdPrint(("FAILED to get PCI_CONFIG\n"));
+					// something changed the mapping....so let's reset it and try this again....
+					originalHostMemValue = *HostMem;
+					*HostMem = userSharedMemory->BufferOffset;
+					KdPrint(("ReadDeviceMemory: encountered HostMem reset\n"));
 				}
 			}
-
 		}
-		/**/
-
-
-		//	device id  10DE 1381 1381196E
-		// PCI Bus 1 device 0 function 0
-		//pciVideoDeviceObject->DriverObject->
-
-
-		// Bar0Address;
-		// HostMemAddress;
-		// WindowAddress;
-		/** /
-		ULONG SavedValue = *HostMemPointer;
-		*HostMemPointer = userSharedMemory->BufferOffset;
-		memcpy(userSharedMemory->ClientMemory, WindowPointer, PRAMIN_LENGTH);
-		*HostMemPointer = SavedValue;
-		/**/
-		// WindowPointer;
-
-		/**/
-		// ok we got a good call
-
-		/* begin current code HERE * /
-		ULONG WindowOffset = userSharedMemory->WindowOffset;
-		ULONG BufferOffset = userSharedMemory->BufferOffset;
-
-		PULONG HostMemPointer = HostMemAddress;
-		KdPrint(("   Host Mem Pointer [0x%lx] [0x%lx]\n", HostMemPointer, *HostMemPointer));
-		ULONG saveValue = *HostMemPointer;
-		*HostMemPointer = WindowOffset;
-		KdPrint(("   Host Mem Pointer [0x%lx] [0x%lx]\n", HostMemPointer, *HostMemPointer));
-
-
-		PCHAR WindowPointer = WindowAddress;
-		KdPrint(("   Window Pointer [0x%lx] [0x%lx]\n", WindowPointer, *WindowPointer));
-		memcpy(userSharedMemory->ClientMemory, WindowPointer, PRAMIN_LENGTH);
-
-		*HostMemPointer = saveValue;
-
-		KdPrint(("   Host Mem Pointer [0x%lx] [0x%lx]\n", HostMemPointer, *HostMemPointer));
-		/* end current code HERE */
-
-
-
-
-		/** /
-		ULONG ob;
-		ULONG vb;
-		PULONG originalBuffer = &ob;
-		PULONG verifyBuffer = &vb;
-		//PULONG originalBuffer = (PULONG)ExAllocatePoolWithTag(NonPagedPool, sizeof(ULONG), 'evol');
-		//PULONG verifyBuffer = (PULONG)ExAllocatePoolWithTag(NonPagedPool, sizeof(ULONG), 'evol');
-		//ULONG BufferOffset = 0x1700;
-		//ULONG WindowOffset = 0x700000;
-		ULONG Length = sizeof(ULONG);
-
-		status = ReadConfigSpace(pciVideoDeviceObject, originalBuffer, BufferOffset, Length);
-		if (!NT_SUCCESS(status)) {
-			KdPrint(("ReadDeviceMemory Could not ReadConfigSpace 0x%x\n", status));
+		else {
+			KdPrint(("ReadDeviceMemory HostMem or Pramin Map failed\n"));
 		}
-		status = WriteConfigSpace(pciVideoDeviceObject, &WindowOffset, BufferOffset, Length);
-		if (!NT_SUCCESS(status)) {
-			KdPrint(("ReadDeviceMemory Could not WriteConfigSpace 0x%x\n", status));
-		}
-		status = ReadConfigSpace(pciVideoDeviceObject, verifyBuffer, BufferOffset, Length);
-		if (!NT_SUCCESS(status)) {
-			KdPrint(("ReadDeviceMemory Could not ReadConfigSpace 0x%x\n", status));
-		}
-
-		/** /
-		KdPrint(("ReadDeviceMemory:  map PRAMIN\n"));
-		PCHAR PRAMIN = (PCHAR)MmMapIoSpace(PRAMIN_ADDRESS, PRAMIN_LENGTH, MmNonCached);
-
-		KdPrint(("MEMORY COPY : %X%X%X%X%X%X%X%X%X%X%X%X\n", PRAMIN[0], PRAMIN[1], PRAMIN[2], PRAMIN[3], PRAMIN[4], PRAMIN[5], PRAMIN[6], PRAMIN[7], PRAMIN[8], PRAMIN[9], PRAMIN[10], PRAMIN[11]));
-		memcpy(userSharedMemory->ClientMemory, PRAMIN, PRAMIN_LENGTH);
-		/** /
-
-		// now set it back to it';s original value
-		status = WriteConfigSpace(pciVideoDeviceObject, originalBuffer, BufferOffset, Length);
-		if (!NT_SUCCESS(status)) {
-			KdPrint(("ReadDeviceMemory Could not WriteConfigSpace 0x%x\n", status));
-		}
-		KdPrint(("ReadDeviceMemory: Buffer Window was [0x%lx] ==changed=to==> [0x%lx]     Buffer Offset [0x%lx]  Window Offset [0x%lx]\n", *originalBuffer, *verifyBuffer, BufferOffset, WindowOffset));
-		/**/
 		KdPrint(("ReadDeviceMemory: EXIT \n"));
 		status = STATUS_SUCCESS;
 	}

@@ -64,8 +64,8 @@ int main(int argc, const char * argv[]) {
 			status = dumpMemoryToFile(hControlDevice, argv[2]);
 		}
 		else if (argc > 1) {
-			printf("DEC: [%s]\n", argv[1]);
-			ULONG BufferOffset = atol(argv[1]);
+			ULONG BufferOffset = atol(argv[1])*PRAMIN_LENGTH;
+			printf("Buffer page [%s] Memory offset [0x%lx]\n", argv[1], BufferOffset);
 			status = dumpMemoryByOffset(hControlDevice, BufferOffset);
 		}
 		CloseHandle(hControlDevice);
@@ -85,11 +85,13 @@ NTSTATUS dumpMemoryToFile(HANDLE hControlDevice, const char * FileName) {
 
 	ULONG      BytesReturned;
 	PCHAR      ClientMemory;
+	PCHAR      MemoryMemory;
 	OVERLAPPED DeviceIoOverlapped;
 	NTSTATUS status = STATUS_UNHANDLED_EXCEPTION;
 
 	SharedMemory = (PSHARED_MEMORY_STRUCT)malloc(sizeof(PSHARED_MEMORY_STRUCT));
-	ClientMemory = (PCHAR)malloc(ClientMemoryLength);
+	ClientMemory = (PCHAR)malloc(PRAMIN_LENGTH);
+	MemoryMemory = (PCHAR)malloc(PRAMIN_LENGTH);
 
 	SharedMemory->ClientMemory = ClientMemory;
 
@@ -98,23 +100,48 @@ NTSTATUS dumpMemoryToFile(HANDLE hControlDevice, const char * FileName) {
 	DeviceIoOverlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
 	printf("Writing pages 0-%d", PRAMIN_PAGES);
-	for (ULONG BufferOffset = 0; BufferOffset < PRAMIN_PAGES; BufferOffset++) {
-		SharedMemory->BufferOffset = BufferOffset*PRAMIN_LENGTH;
+	for (ULONG BufferOffset = 0; BufferOffset < PRAMIN_PAGES;) {
+		SharedMemory->BufferOffset = BufferOffset;
 
 		status = readMemoryByOffset(hControlDevice, SharedMemory);
-
+		if (BufferOffset == 0) {
+			memcpy(MemoryMemory, ClientMemory, PRAMIN_LENGTH);
+		}
+		else {
+			for (int i = 0; i < PRAMIN_LENGTH; i++) {
+				if (MemoryMemory[i] != ClientMemory[i]) {
+					MemoryMemory[i] = 0;
+				}
+			}
+		}
 		if (NT_SUCCESS(status)) {
 			fwrite(ClientMemory, PRAMIN_LENGTH, 1, FilePointer);
 			printf(".");
 		}
 		else {
 			printf("Call failed. [0x%lx]\n", status);
-			BufferOffset = 1000;
+			break;
 		}
+		BufferOffset = BufferOffset + 0x10;
 	}
 	printf("finished writing.\nClosing...");
 	fclose(FilePointer);
-	printf("Closed.\nFinished.\n");
+	printf("Closed.");
+
+	ULONG NonZeroByteCount = 0;
+	for (int i = 0; i < PRAMIN_LENGTH; i++) {
+		if (MemoryMemory[i] != 0) {
+			if (NonZeroByteCount == 0) {
+				printf("\n\nFound unchanged memory:\n");
+			}
+			printf("%c", MemoryMemory[i]);
+			NonZeroByteCount++;
+		}
+	}
+	if (NonZeroByteCount > 0) {
+		printf("\nThere are %lu bytes found that never change.  Percentage is %lu\n", NonZeroByteCount, ((NonZeroByteCount * 100) / PRAMIN_LENGTH));
+	}
+	printf("\nFinished.\n");
 	return status;
 }
 
@@ -127,7 +154,7 @@ NTSTATUS dumpMemoryByOffset(HANDLE hControlDevice, ULONG BufferOffset) {
 	NTSTATUS status = STATUS_UNHANDLED_EXCEPTION;
 
 	SharedMemory = (PSHARED_MEMORY_STRUCT)malloc(sizeof(PSHARED_MEMORY_STRUCT));
-	ClientMemory = (PCHAR)malloc(ClientMemoryLength);
+	ClientMemory = (PCHAR)malloc(PRAMIN_LENGTH);
 
 	SharedMemory->ClientMemory = ClientMemory;
 	SharedMemory->BufferOffset = BufferOffset;
@@ -144,11 +171,11 @@ NTSTATUS dumpMemoryByOffset(HANDLE hControlDevice, ULONG BufferOffset) {
 				printf("\n");
 			}
 		}
-		printf("\nIn HEX:\n[");
+		printf("\nIn HEX:\n[0x0] [");
 		for (ULONG i = 0; i < PRAMIN_LENGTH; i++) {
 			printf("0x%x ", ClientMemory[i]);
-			if ((i + 1) % 20 == 0) {
-				printf("]\n[");
+			if ((i + 1) % 16 == 0) {
+				printf("]\n[0x%lx] [", i);
 			}
 		}
 		printf("]\n");
@@ -165,13 +192,13 @@ NTSTATUS readMemoryByOffset(HANDLE hControlDevice, PSHARED_MEMORY_STRUCT SharedM
 	OVERLAPPED DeviceIoOverlapped;
 	NTSTATUS status = STATUS_UNHANDLED_EXCEPTION;
 
-	memset(SharedMemory->ClientMemory, 0, ClientMemoryLength);
+	memset(SharedMemory->ClientMemory, 0, PRAMIN_LENGTH);
 
 	DeviceIoOverlapped.Offset = 0;
 	DeviceIoOverlapped.OffsetHigh = 0;
 	DeviceIoOverlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
-	if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, SharedMemory, SharedMemoryLength, &BytesReturned, &DeviceIoOverlapped)) {
+	if (!DeviceIoControl(hControlDevice, IOCTL_CUSTOM_CODE, NULL, 0, SharedMemory, sizeof(SHARED_MEMORY_STRUCT), &BytesReturned, &DeviceIoOverlapped)) {
 		status = STATUS_IO_DEVICE_ERROR;
 	}
 	else {
