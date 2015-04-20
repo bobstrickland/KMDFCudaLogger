@@ -12,9 +12,6 @@ Environment:
 
 Kernel-mode Driver Framework
 
-
-look at IoEnumerateDeviceObjectList 
-
 --*/
 
 #include "Driver.h"
@@ -22,7 +19,6 @@ look at IoEnumerateDeviceObjectList
 #include <AccessBus.h>
 #include <initguid.h>
 #include <wdmguid.h>
-//#include "driver.tmh"
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (INIT, DriverEntry)
@@ -38,14 +34,14 @@ NTSTATUS GetPciDeviceByName(_In_ PDRIVER_OBJECT  pDriverObject, PCWSTR driverNam
 
 	RtlInitUnicodeString(&pciDriverName, driverName);
 	driverObjectType = ObGetObjectType(pDriverObject);
-	status = ObReferenceObjectByName(&pciDriverName, OBJ_CASE_INSENSITIVE, NULL, 0, driverObjectType, //(POBJECT_TYPE)IoDriverObjectType,
+	status = ObReferenceObjectByName(&pciDriverName, OBJ_CASE_INSENSITIVE, NULL, 0, driverObjectType, 
 		KernelMode, NULL, (PVOID*)&pciDriverObject);
 
 	if (NT_SUCCESS(status) && pciDriverObject) {
 
 		KdPrint(("pciDriverObject is [0x%lx]\n", pciDriverObject));
 		pciVideoDeviceObject = pciDriverObject->DeviceObject;
-		while (pciVideoDeviceObject && pciVideoDeviceObject->DeviceType != 0x23 && pciVideoDeviceObject->NextDevice) { //     pciVideoDeviceObject->Flags != 0x2004
+		while (pciVideoDeviceObject && pciVideoDeviceObject->DeviceType != FILE_DEVICE_VIDEO && pciVideoDeviceObject->NextDevice) { 
 			pciVideoDeviceObject = pciVideoDeviceObject->NextDevice;
 		}
 
@@ -53,7 +49,6 @@ NTSTATUS GetPciDeviceByName(_In_ PDRIVER_OBJECT  pDriverObject, PCWSTR driverNam
 			KdPrint(("pciVideoDeviceObject is [0x%lx]\n", pciVideoDeviceObject));
 		}
 
-		/**/
 		if (pciVideoDeviceObject) {
 
 			PCI_COMMON_CONFIG commonConfig;
@@ -79,9 +74,6 @@ NTSTATUS GetPciDeviceByName(_In_ PDRIVER_OBJECT  pDriverObject, PCWSTR driverNam
 				KdPrint(("ReadConfigSpace failed ntstatus [0x%lx] \n", status));
 			}
 		}
-		/**/
-
-
 	}
 	return status;
 }

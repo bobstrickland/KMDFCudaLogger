@@ -229,64 +229,6 @@ VOID ReadDeviceMemory(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request) {
 	NTSTATUS  status;
 	WDFMEMORY memoryHandle;
 	ULONG     Length;
-//	size_t    memoryLength;
-
-
-	//PHYSICAL_ADDRESS PRAMIN_CONTROL_ADDRESS = { 0x1700, 0x0 };
-	//PHYSICAL_ADDRESS PRAMIN_ADDRESS = { 0x700000, 0x0 }; //at the address 0x700000-0x7fffff
-	//ULONG            PRAMIN_LENGTH = 0x100000;
-
-
-
-
-
-
-
-
-
-	/** /
-
-	if (pciVideoDeviceObject) {
-		KdPrint(("pciVideoDeviceObject is [0x%lx]\n", pciVideoDeviceObject));
-		pauseForABit(10);
-
-//		PCI_COMMON_CONFIG commonConfig;
-		PCI_COMMON_HEADER PciHeader;
-		PPCI_COMMON_CONFIG PciConfig = (PPCI_COMMON_CONFIG)&PciHeader;
-		status = ReadConfigSpace(pciVideoDeviceObject, PciConfig, 0, sizeof(PCI_COMMON_HEADER));
-		if (NT_SUCCESS(status)) {
-			if (PciConfig) {
-				KdPrint(("ReadConfigSpace: Type %d\n", PciHeader.HeaderType));
-				pauseForABit(10);
-				Bar0Address = PciHeader.u.type0.BaseAddresses[0];
-				HostMemAddress = Bar0Address + 0x1700;
-				WindowAddress = Bar0Address + 0x700000;
-				KdPrint(("   Base Address 0   [0x%lx]\n", Bar0Address));
-				KdPrint(("   Host Mem Address [0x%lx]\n", HostMemAddress));
-				KdPrint(("   Window Address   [0x%lx]\n\n", WindowAddress));
-			}
-			else {
-				KdPrint(("ReadConfigSpace failed :-( \n"));
-			}
-		}
-		else {
-			KdPrint(("ReadConfigSpace failed ntstatus [0x%lx] \n", status));
-		}
-		pauseForABit(10);
-	}
-	/**/
-
-
-
-
-
-
-
-
-
-
-	
-
 
 	Length = sizeof(SHARED_MEMORY_STRUCT);
 
