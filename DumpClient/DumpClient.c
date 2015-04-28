@@ -3,7 +3,6 @@
 
 #include <windows.h>
 #include "stdafx.h"
-//#include <ntsecapi.h>
 
 #define ASCII_0_VALU 48
 #define ASCII_9_VALU 57
@@ -33,9 +32,6 @@ VOID PauseForABit(WORD SecondsDelay) {
 	}
 	CurrentMinute = systemTime.wMinute;
 	CurrentSecond = systemTime.wSecond;
-
-	//printf("%d seconds pause begin [%d:%d]", SecondsDelay, CurrentMinute, CurrentSecond);
-
 	while (TRUE) {
 		GetSystemTime(&systemTime);
 		CurrentMinute = systemTime.wMinute;
@@ -44,7 +40,6 @@ VOID PauseForABit(WORD SecondsDelay) {
 			break;
 		}
 	}
-	//printf(" - [%d:%d]\n", CurrentMinute, CurrentSecond);
 	return;
 }
 
@@ -88,9 +83,6 @@ int main(int argc, const char * argv[]) {
 	ULONG BufferOffset = 0;
 	WORD SecondsDelay = 0;
 	BOOLEAN FullDump = FALSE;
-
-
-
 
 	hControlDevice = CreateFile(TEXT("\\\\.\\DeviceMemDump"), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
@@ -151,23 +143,6 @@ int main(int argc, const char * argv[]) {
 			printf("Dump 1 Page offset [0x%lx]\n", BufferOffset);
 			status = dumpMemoryByOffset(hControlDevice, BufferOffset);
 		}
-
-		/** /
-		if (argc > 2 && strncmp(argv[1], "0x", 2) == 0) {
-			printf("Hex: [%s]\n", argv[2]);
-			ULONG BufferOffset = HexStringToUInt(argv[2]);
-			status = dumpMemoryByOffset(hControlDevice, BufferOffset);
-		}
-		else if (argc > 2 && strncmp(argv[1], "file", 4) == 0) {
-			printf("Everything to file\n");
-			status = dumpMemoryToFile(hControlDevice, argv[2]);
-		}
-		else if (argc > 1) {
-			ULONG BufferOffset = atol(argv[1])*PRAMIN_LENGTH;
-			printf("Buffer page [%s] Memory offset [0x%lx]\n", argv[1], BufferOffset);
-			status = dumpMemoryByOffset(hControlDevice, BufferOffset);
-		}
-		/**/
 		CloseHandle(hControlDevice);
 		GetSystemTime(&Now);
 		EndHour = Now.wHour;
@@ -330,5 +305,3 @@ NTSTATUS readMemoryByOffset(HANDLE hControlDevice, PSHARED_MEMORY_STRUCT SharedM
 	}
 	return status;
 }
-
-
