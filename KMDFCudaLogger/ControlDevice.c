@@ -1,6 +1,5 @@
 #include <ntddk.h>
 #include <wdf.h>
-//#include <ntddkbd.h>   
 #include <ControlDevice.h>
 #include <PageTableManipulation.h>
 #include <SharedHeader.h>
@@ -20,7 +19,6 @@ NTSTATUS CreateControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regis
 	WDFDRIVER Driver;
 	WDF_DRIVER_CONFIG       DriverConfig;
 	WDF_IO_QUEUE_CONFIG         ioQueueConfig;
-	//WDFQUEUE                    queue;
 
 	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&ControlDeviceAttributes, CONTROL_DEVICE_EXTENSION);
 	WDF_DRIVER_CONFIG_INIT(&DriverConfig, WDF_NO_EVENT_CALLBACK);
@@ -91,9 +89,13 @@ NTSTATUS CreateControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regis
 
 NTSTATUS DestroyControlDevice(PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath) {
 	KdPrint(("DestroyControlDevice IRQ Level [%u]", KeGetCurrentIrql()));
-	NTSTATUS status;
-	status = WdfIoQueuePurge(queue, NULL, NULL);
+	NTSTATUS status = STATUS_SUCCESS;
+	//status = 
+	WdfIoQueuePurge(queue, NULL, NULL);
 	// TODO: here!!!
+
+
+	return status;
 }
 
 _Use_decl_annotations_

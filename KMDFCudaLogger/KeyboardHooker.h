@@ -2,13 +2,10 @@
 #define __KeyboardHooker_h__
 #include <hidpddi.h>
 #include <wmilib.h>
-
 #include <wdf.h>
 #include <wdmsec.h> // for SDDLs
 #define NTSTRSAFE_LIB
 #include <ntstrsafe.h>
-
-//typedef ULONG_PTR KSPIN_LOCK;
 
 typedef struct KEY_STATE
 {
@@ -74,12 +71,13 @@ typedef struct _HID_KBD {
 
 
 
+
 VOID pauseForABit(CSHORT secondsDelay);
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS PrepHook(IN PDRIVER_OBJECT pDriverObject);
 _IRQL_requires_max_(PASSIVE_LEVEL)
-NTSTATUS HookKeyboard(IN PDRIVER_OBJECT pDriverObject, IN PDEVICE_OBJECT usbBaseKeyboardDeviceObject);
+NTSTATUS HookKeyboard(IN PDEVICE_OBJECT usbBaseKeyboardDeviceObject);
 _IRQL_requires_max_(DISPATCH_LEVEL)
 NTSTATUS DispatchRead(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp);
 _IRQL_requires_max_(DISPATCH_LEVEL)

